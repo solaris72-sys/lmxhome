@@ -1,0 +1,14 @@
+{
+  "name": "lmx-home",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LMX Home: one page for every app, the Obsidian road maps (synced both ways) and recent work",
+  "scripts": {
+    "dev": "netlify dev",
+    "sync": "node sync/sync-home.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^10.7.9"
+  }
+}

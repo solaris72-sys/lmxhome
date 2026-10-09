@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LMX Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Display&family=Spectral:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="login" class="login" hidden>
+    <h1>LMX Home</h1>
+    <form id="login-form">
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+      <button type="submit">Unlock</button>
+      <p class="error" id="login-error"></p>
+    </form>
+  </main>
+
+  <div id="app" hidden>
+    <header class="topbar">
+      <div>
+        <h1>LMX Home</h1>
+        <p class="today" id="today"></p>
+      </div>
+      <div class="actions">
+        <span class="sync" id="sync-status"></span>
+        <button class="link" id="refresh">Refresh</button>
+        <button class="link" id="logout">Log out</button>
+      </div>
+    </header>
+
+    <div class="problems" id="problems" hidden></div>
+    <p class="focus" id="focus" hidden></p>
+
+    <div class="layout">
+      <div class="main-col">
+        <section class="card" id="coming-up-card">
+          <h2>Coming up</h2>
+          <ul class="coming" id="coming-up"></ul>
+        </section>
+
+        <div id="agendas"></div>
+
+        <section>
+          <div class="section-head">
+            <h2>To do</h2>
+            <nav class="tabs" id="roadmap-tabs"></nav>
+            <label class="show-done"><input type="checkbox" id="show-done"> Show done</label>
+          </div>
+          <div id="roadmap"></div>
+        </section>
+      </div>
+
+      <div class="side-col">
+        <section>
+          <h2>Apps</h2>
+          <div class="apps" id="apps"><p class="hint">Loading…</p></div>
+        </section>
+        <section>
+          <h2>Recent work</h2>
+          <div id="sessions"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

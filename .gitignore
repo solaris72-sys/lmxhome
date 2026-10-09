@@ -1,0 +1,5 @@
+node_modules/
+.netlify/
+.env
+sync/sync-config.json
+sync/sync.log
