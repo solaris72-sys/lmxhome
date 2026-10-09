@@ -9,6 +9,7 @@
     "sync": "node sync/sync-home.mjs"
   },
   "dependencies": {
-    "@netlify/blobs": "^10.7.9"
+    "@netlify/blobs": "^10.7.9",
+    "ical.js": "^2.2.1"
   }
 }

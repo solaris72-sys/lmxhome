@@ -1,7 +1,8 @@
 (function () {
   'use strict';
 
-  var state = { snapshot: null, pending: 0, problems: [], apps: null };
+  var state = { snapshot: null, pending: 0, problems: [], apps: null, cleared: [], calendar: null };
+  var showCleared = false;
   var roadmapId = localGet('roadmap') || 'woodworking';
   var adding = {}; // group heading -> add box open
 
@@ -97,7 +98,7 @@
     api('auth-logout', { method: 'POST' }).catch(function () {}).then(showLogin);
   });
 
-  $('refresh').addEventListener('click', function () { load(); loadApps(); });
+  $('refresh').addEventListener('click', function () { load(); loadApps(); loadCalendar(); });
 
   function start() {
     $('login').hidden = true;
@@ -106,6 +107,7 @@
     $('show-done').checked = localGet('showDone') === '1';
     load();
     loadApps();
+    loadCalendar();
   }
 
   function load() {
@@ -113,6 +115,7 @@
       state.snapshot = r.snapshot;
       state.pending = r.pending;
       state.problems = r.problems || [];
+      state.cleared = r.cleared || [];
       render();
     }).catch(function (err) {
       if (err.message !== 'Unauthorized') $('sync-status').textContent = err.message;
@@ -283,7 +286,14 @@
       el('div', { className: 'body' }, [
         el('span', { className: 'text', html: inline(t.text) }),
         t.sub && t.sub.length ? el('ul', { className: 'sub' }, t.sub.map(function (s) { return el('li', { html: inline(s) }); })) : null
-      ])
+      ]),
+      t.done ? null : el('button', { className: 'link remind', text: 'Remind', title: 'Add a reminder to Google Calendar', onclick: function () {
+        var date = /(20\d\d-\d\d-\d\d)/.exec(t.text);
+        openReminder({
+          text: t.text.replace(/\*\*|`/g, '').replace(/\[\[([^\]|]+\|)?([^\]]+)\]\]/g, '$2'),
+          date: date && daysUntil(date[1]) >= 0 ? date[1] : todayIso()
+        });
+      } })
     ]);
     return row;
   }
@@ -343,6 +353,26 @@
     return out;
   }
 
+  // The date is part of the key, so a deadline that moves comes back
+  function itemKey(it) { return it.src + '|' + it.date + '|' + it.text; }
+
+  function isCleared(it) {
+    var k = itemKey(it);
+    return state.cleared.some(function (c) { return c.key === k; });
+  }
+
+  function setCleared(it, clear) {
+    var k = itemKey(it);
+    var before = state.cleared;
+    state.cleared = clear ? before.concat([{ key: k, text: it.text }]) : before.filter(function (c) { return c.key !== k; });
+    renderComingUp();
+    api('cleared', { method: clear ? 'POST' : 'DELETE', body: { key: k, text: it.text } })
+      .then(function (r) { state.cleared = r.cleared; renderComingUp(); })
+      .catch(function (err) { state.cleared = before; renderComingUp(); $('sync-status').textContent = 'Not saved: ' + err.message; });
+  }
+
+  $('show-cleared').addEventListener('click', function () { showCleared = !showCleared; renderComingUp(); });
+
   function renderComingUp() {
     var items = datedTasks();
     (state.apps || []).forEach(function (a) {
@@ -351,21 +381,180 @@
       });
     });
     items.sort(function (a, b) { return a.date.localeCompare(b.date); });
+    var clearedHere = items.filter(isCleared);
+    var shown = showCleared ? items : items.filter(function (it) { return !isCleared(it); });
+    var toggle = $('show-cleared');
+    toggle.hidden = !clearedHere.length;
+    toggle.textContent = showCleared ? 'Hide cleared' : 'Show cleared (' + clearedHere.length + ')';
     var list = $('coming-up');
     list.textContent = '';
-    items.slice(0, 12).forEach(function (it) {
+    shown.slice(0, showCleared ? 40 : 12).forEach(function (it) {
       var w = whenLabel(it.date);
-      list.appendChild(el('li', {}, [
-        el('span', { className: 'when' + (w.soon ? ' soon' : ''), text: w.text }),
+      var cleared = isCleared(it);
+      list.appendChild(el('li', { className: cleared ? 'cleared' : '' }, [
+        el('span', { className: 'when' + (w.soon && !cleared ? ' soon' : ''), text: w.text }),
         el('span', { className: 'what' }, [
           it.url ? el('a', { href: it.url, target: '_blank', rel: 'noopener', text: it.text }) : el('span', { html: inline(it.text) }),
-          it.status ? ' · ' + it.status : ''
+          it.status ? ' · ' + it.status : '',
+          el('span', { className: 'src', text: ' ' + it.src })
         ]),
-        el('span', { className: 'src', text: it.src })
+        el('span', { className: 'item-actions' }, [
+          cleared ? null : el('button', { className: 'link', text: 'Remind', title: 'Add a reminder to Google Calendar', onclick: function () {
+            openReminder({ text: it.text.replace(/\*\*/g, ''), date: daysUntil(it.date) < 0 ? todayIso() : it.date, notes: it.url || '' });
+          } }),
+          el('button', { className: 'link', text: cleared ? 'Restore' : 'Clear', title: cleared ? 'Show it in Coming up again' : 'Hide it from Coming up', onclick: function () { setCleared(it, !cleared); } })
+        ])
       ]));
     });
-    if (!items.length) list.appendChild(el('li', { className: 'hint', text: state.apps ? 'Nothing dated in the next month. Deadlines appear here once you mark an opportunity Interested or Applying and give it a deadline.' : 'Loading deadlines…' }));
+    if (!shown.length) {
+      var msg = !state.apps ? 'Loading deadlines…'
+        : items.length ? 'All cleared.'
+        : 'Nothing dated in the next month. Deadlines appear here once you mark an opportunity Interested or Applying and give it a deadline.';
+      list.appendChild(el('li', { className: 'hint', text: msg }));
+    }
   }
+
+  // ── Calendar: upcoming Google Calendar events, read from its private feed ──
+
+  var calDays = 7;
+
+  function loadCalendar() {
+    return api('calendar').then(function (r) {
+      state.calendar = r;
+      renderCalendar();
+    }).catch(function (err) {
+      if (err.message === 'Unauthorized') return;
+      state.calendar = { error: err.message };
+      renderCalendar();
+    });
+  }
+
+  function isoOf(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function addDays(iso, n) {
+    var d = new Date(iso + 'T12:00:00');
+    d.setDate(d.getDate() + n);
+    return isoOf(d);
+  }
+
+  function dayLabel(iso) {
+    var d = daysUntil(iso);
+    if (d === 0) return 'Today';
+    if (d === 1) return 'Tomorrow';
+    return shortDate(iso);
+  }
+
+  function timeLabel(at) {
+    return new Date(at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(':00', '').replace(' ', '').toLowerCase();
+  }
+
+  // Each event on every day it touches; all-day end dates are exclusive in the feed
+  function eventsByDay(events, first, last) {
+    var days = {};
+    events.forEach(function (e) {
+      var startIso = e.allDay ? e.start.date : isoOf(new Date(e.start.at));
+      var endIso = startIso;
+      if (e.allDay && e.end && e.end.date) endIso = addDays(e.end.date, -1);
+      else if (!e.allDay && e.end && e.end.at) endIso = isoOf(new Date(Date.parse(e.end.at) - 1));
+      if (endIso < startIso) endIso = startIso;
+      for (var iso = startIso < first ? first : startIso; iso <= endIso && iso <= last; iso = addDays(iso, 1)) {
+        (days[iso] = days[iso] || []).push({ ev: e, firstDay: iso === startIso });
+      }
+    });
+    return days;
+  }
+
+  function renderCalendar() {
+    var box = $('calendar');
+    box.textContent = '';
+    var c = state.calendar;
+    if (!c) { box.appendChild(el('p', { className: 'hint', text: 'Loading…' })); return; }
+    if (c.error) { box.appendChild(el('p', { className: 'hint', text: 'Couldn’t load the calendar: ' + c.error })); return; }
+    if (!c.configured) {
+      box.appendChild(el('div', { className: 'hint', html: block(
+        'To show your events here, copy your calendar’s private feed link into Netlify:\n' +
+        '1. Google Calendar on a computer, gear icon, **Settings**, then your calendar under "Settings for my calendars"\n' +
+        '2. Under "Integrate calendar", copy **Secret address in iCal format**\n' +
+        '3. Netlify, site **lmxhome**, Environment variables: add `GCAL_ICS_URLS` with that link (tick "Contains secret values"), then ask Claude to redeploy\n' +
+        'More than one calendar: separate the links with commas.') }));
+      return;
+    }
+    var first = todayIso();
+    var last = addDays(first, calDays - 1);
+    var days = eventsByDay(c.events, first, last);
+    var list = el('div', { className: 'cal-days' });
+    Object.keys(days).sort().forEach(function (iso) {
+      var evs = days[iso].sort(function (a, b) {
+        if (a.ev.allDay !== b.ev.allDay) return a.ev.allDay ? -1 : 1;
+        return (a.ev.start.at || '').localeCompare(b.ev.start.at || '');
+      });
+      list.appendChild(el('div', { className: 'cal-day' + (iso === first ? ' today' : '') }, [
+        el('div', { className: 'cal-date', text: dayLabel(iso) }),
+        el('ul', {}, evs.map(function (x) {
+          var e = x.ev;
+          var t = e.allDay ? 'All day' : (x.firstDay ? timeLabel(e.start.at) : 'cont.');
+          return el('li', {}, [
+            el('span', { className: 'cal-time', text: t }),
+            el('span', { className: 'cal-title', text: e.title + (e.location ? ' · ' + e.location : '') })
+          ]);
+        }))
+      ]));
+    });
+    if (!list.children.length) list.appendChild(el('p', { className: 'hint', text: 'Nothing on the calendar in the next ' + calDays + ' days.' }));
+    box.appendChild(list);
+    box.appendChild(el('button', { className: 'link', text: calDays === 7 ? 'Show 2 weeks' : 'Show 1 week', onclick: function () {
+      calDays = calDays === 7 ? 14 : 7;
+      renderCalendar();
+    } }));
+    (c.errors || []).forEach(function (e) { box.appendChild(el('p', { className: 'error', text: 'One calendar didn’t load: ' + e })); });
+  }
+
+  // ── Reminders: opens Google Calendar with the event filled in ──
+
+  function compact(iso) { return iso.replace(/-/g, ''); }
+
+  function googleLink(text, date, time, notes) {
+    var dates;
+    if (time) {
+      var start = compact(date) + 'T' + time.replace(':', '') + '00';
+      var end = new Date(date + 'T' + time + ':00');
+      end.setMinutes(end.getMinutes() + 30);
+      dates = start + '/' + compact(isoOf(end)) + 'T' + String(end.getHours()).padStart(2, '0') + String(end.getMinutes()).padStart(2, '0') + '00';
+    } else {
+      dates = compact(date) + '/' + compact(addDays(date, 1));
+    }
+    var q = 'action=TEMPLATE&text=' + encodeURIComponent(text) + '&dates=' + dates +
+      (time ? '&ctz=America/Los_Angeles' : '') +
+      (notes ? '&details=' + encodeURIComponent(notes) : '');
+    return 'https://calendar.google.com/calendar/render?' + q;
+  }
+
+  function openReminder(prefill) {
+    prefill = prefill || {};
+    $('rem-text').value = prefill.text || '';
+    $('rem-date').value = prefill.date || todayIso();
+    $('rem-time').value = '';
+    $('rem-notes').value = prefill.notes || '';
+    var dlg = $('reminder');
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+    $(prefill.text ? 'rem-date' : 'rem-text').focus();
+  }
+
+  function closeReminder() {
+    var dlg = $('reminder');
+    if (dlg.close) dlg.close(); else dlg.removeAttribute('open');
+  }
+
+  $('new-reminder').addEventListener('click', function () { openReminder(); });
+  $('rem-cancel').addEventListener('click', closeReminder);
+  $('reminder').addEventListener('click', function (e) { if (e.target === $('reminder')) closeReminder(); });
+  $('reminder-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    window.open(googleLink($('rem-text').value.trim(), $('rem-date').value, $('rem-time').value, $('rem-notes').value.trim()), '_blank', 'noopener');
+    closeReminder();
+  });
 
   // ── Apps ──
 
@@ -429,9 +618,9 @@
     box.appendChild(el('p', { className: 'hint', text: 'Older sessions are in Session Summary in Obsidian.' }));
   }
 
-  // Keep it fresh while it's open: road maps every 2 minutes, app numbers every 10
+  // Keep it fresh while it's open: road maps every 2 minutes, app numbers and calendar every 10
   setInterval(function () { if (!$('app').hidden && !document.hidden) load(); }, 120000);
-  setInterval(function () { if (!$('app').hidden && !document.hidden) loadApps(); }, 600000);
+  setInterval(function () { if (!$('app').hidden && !document.hidden) { loadApps(); loadCalendar(); } }, 600000);
 
   fetch('/api/auth-check').then(function (res) {
     if (res.ok) start(); else showLogin();

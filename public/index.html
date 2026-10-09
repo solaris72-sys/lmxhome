@@ -38,7 +38,10 @@
     <div class="layout">
       <div class="main-col">
         <section class="card" id="coming-up-card">
-          <h2>Coming up</h2>
+          <div class="card-head">
+            <h2>Coming up</h2>
+            <button class="link" id="show-cleared" hidden></button>
+          </div>
           <ul class="coming" id="coming-up"></ul>
         </section>
 
@@ -55,6 +58,14 @@
       </div>
 
       <div class="side-col">
+        <section class="card" id="calendar-card">
+          <div class="card-head">
+            <h2>Calendar</h2>
+            <button class="small" id="new-reminder">+ Reminder</button>
+          </div>
+          <div id="calendar"><p class="hint">Loading…</p></div>
+          <p class="cal-foot"><a href="https://calendar.google.com/calendar/r" target="_blank" rel="noopener">Open Google Calendar</a></p>
+        </section>
         <section>
           <h2>Apps</h2>
           <div class="apps" id="apps"><p class="hint">Loading…</p></div>
@@ -66,6 +77,31 @@
       </div>
     </div>
   </div>
+
+  <dialog id="reminder" class="reminder">
+    <form id="reminder-form" method="dialog">
+      <h2>Add to Google Calendar</h2>
+      <label>What
+        <input id="rem-text" required>
+      </label>
+      <div class="rem-when">
+        <label>Date
+          <input type="date" id="rem-date" required>
+        </label>
+        <label>Time <span class="hint">(optional)</span>
+          <input type="time" id="rem-time">
+        </label>
+      </div>
+      <label>Notes <span class="hint">(optional)</span>
+        <textarea id="rem-notes" rows="2"></textarea>
+      </label>
+      <p class="hint">Opens Google Calendar with this filled in. Tap Save there; it uses your usual notification settings.</p>
+      <div class="rem-buttons">
+        <button type="button" class="link" id="rem-cancel">Cancel</button>
+        <button type="submit">Open in Google Calendar</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="app.js"></script>
 </body>

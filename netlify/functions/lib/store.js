@@ -44,3 +44,9 @@ export function applyToSnapshot(snapshot, op) {
     if (g) g.tasks.push({ key: `pending-${op.id}`, text: op.text, done: false, sub: [] });
   }
 }
+
+// Coming up items cleared from the page (kept on the server so phone and computer agree).
+// Each key includes the date, so a deadline that moves shows up again
+const CLEARED_KEY = "cleared.json";
+export const listCleared = () => read(CLEARED_KEY, []);
+export const saveCleared = (c) => store().setJSON(CLEARED_KEY, c.slice(-300));
