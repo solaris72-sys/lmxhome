@@ -377,7 +377,7 @@
     var items = datedTasks();
     (state.apps || []).forEach(function (a) {
       ((a.data && a.data.deadlines) || []).forEach(function (d) {
-        items.push({ date: d.deadline, text: d.title + (d.organization ? ' (' + d.organization + ')' : ''), src: a.name, url: d.url, status: d.status });
+        items.push({ date: d.deadline, text: d.title + (d.organization ? ' (' + d.organization + ')' : ''), src: d.tab || a.name, url: d.url, status: d.status });
       });
     });
     items.sort(function (a, b) { return a.date.localeCompare(b.date); });
@@ -564,11 +564,12 @@
     var d = a.data;
     if (a.error) return [el('div', { className: 'line', text: 'Couldn’t reach it: ' + a.error })];
     if (!d) return [el('div', { className: 'line hint', text: a.up === false ? 'Not responding' : 'Online' })];
-    if (a.id === 'opps' || a.id === 'scion') {
+    if (a.id === 'opps') {
       var lines = [el('div', { className: 'line', text: d.new + ' new to look through · ' + d.saved + ' saved' + (d.submitted ? ' · ' + d.submitted + ' submitted' : '') })];
-      if (d.running) lines.push(el('div', { className: 'line nudge', text: 'Searching right now…' }));
+      if (d.tabs) lines.push(el('ul', { className: 'opp-tabs' }, d.tabs.map(function (t) { return oppTab(a, t); })));
       else if (d.lastRun) lines.push(el('div', { className: 'line hint', text: 'Last search ' + ago(d.lastRun.finishedAt) + ': ' + d.lastRun.added + ' new, ' + money(d.lastRun.cost) }));
-      if (d.new >= 15) lines.push(el('div', { className: 'line nudge', text: 'Rate a few so the search learns what fits.' }));
+      var busy = (d.tabs || []).filter(function (t) { return t.new >= 15; });
+      if (busy.length) lines.push(el('div', { className: 'line nudge', text: 'Rate a few on ' + busy.map(function (t) { return t.name; }).join(' and ') + ' so the search learns what fits.' }));
       return lines;
     }
     if (a.id === 'resume') {
@@ -585,6 +586,18 @@
         d.published ? null : el('div', { className: 'line nudge', text: 'Publish a listing so it shows on the Lumber Sales page.' })];
     }
     return [];
+  }
+
+  // One row per tab of the opportunities app; the name opens the app on that tab
+  function oppTab(a, t) {
+    var last = t.running ? 'searching now…'
+      : t.lastRun ? 'searched ' + ago(t.lastRun.finishedAt) + ': ' + t.lastRun.added + ' new' + (t.lastRun.problems ? ', had a problem' : '')
+      : 'not searched yet';
+    return el('li', {}, [
+      el('a', { href: a.url + '/?tab=' + encodeURIComponent(t.id), target: '_blank', rel: 'noopener', text: t.name }),
+      el('span', { className: 'counts', text: t.new + ' new · ' + t.saved + ' saved' }),
+      el('div', { className: 'hint' + (t.running ? ' nudge' : ''), text: last + (t.scheduled ? '' : ' · by hand only') })
+    ]);
   }
 
   function renderApps() {

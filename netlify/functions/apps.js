@@ -3,14 +3,14 @@ import { json } from "./lib/http.js";
 
 // Every app, and where to get its numbers. "summary" apps share SUMMARY_TOKEN with this site.
 const APPS = [
-  { id: "opps", name: "Woodworking Opportunities", url: "https://lmxopportunities.netlify.app", summary: "/api/summary", area: "Woodworking" },
+  // One app with a tab per search (woodworking, forestry, Bay Area...); ?board=all lists each tab
+  { id: "opps", name: "Opportunities", url: "https://lmxopportunities.netlify.app", summary: "/api/summary?board=all", area: "All tabs" },
   { id: "resume", name: "Resume Builder", url: "https://lmxresume.netlify.app", summary: "/api/summary", area: "Woodworking" },
   { id: "flyers", name: "Flyer Tracker", url: "https://lmxflyers.netlify.app", summary: "/api/summary", area: "Woodworking" },
   { id: "lumber", name: "Lumber Inventory", url: "https://lmxlumberinventory.netlify.app", publicListings: "/api/public-listings", area: "Woodworking" },
   { id: "site", name: "lmxfurniture.com", url: "https://lmxfurniture.com", area: "Woodworking" },
   { id: "insta", name: "Instagram Post Studio", url: "https://lmxinsta.netlify.app", area: "Woodworking" },
   { id: "newsletter", name: "Newsletter Builder", url: "https://lmxnewsletterapp.netlify.app", area: "Woodworking" },
-  { id: "scion", name: "Forestry Opportunities", url: "https://scionopportunities.netlify.app", summary: "/api/summary", area: "Scion Forestry" },
 ];
 
 async function fetchJson(url, headers) {
