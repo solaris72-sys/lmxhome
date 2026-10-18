@@ -302,3 +302,13 @@ button.link.write { padding-left: 0; font-size: 14px; }
 ul.wins { margin: 0; padding-left: 18px; font-size: 14px; }
 ul.wins li::marker { content: '✓  '; color: var(--good); }
 .tell-wins { color: var(--good); font-size: 14px; }
+
+/* Make the fold toggle obvious */
+.fold-head::before, [data-fold] > h2::before, [data-fold] > .card-head > h2::before, [data-fold] > .section-head > h2::before { opacity: 1; color: var(--accent); font-size: 0.9em; width: 1.1em; }
+.fold-head::after, [data-fold] > h2::after, [data-fold] > .card-head > h2::after, [data-fold] > .section-head > h2::after {
+  content: 'hide'; margin-left: 10px; font-family: inherit; font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--accent); text-decoration: underline;
+}
+[data-fold].folded .fold-head::after, [data-fold].folded > h2::after, [data-fold].folded > .card-head > h2::after, [data-fold].folded > .section-head > h2::after { content: 'show'; }
+.fold-head:hover .eyebrow, [data-fold] > h2:hover, [data-fold] > .card-head > h2:hover, [data-fold] > .section-head > h2:hover { color: var(--accent); }
+.fold-head .fold-summary { order: 1; }
+.fold-head::after { order: 2; }
