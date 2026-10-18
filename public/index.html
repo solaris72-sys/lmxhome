@@ -33,11 +33,11 @@
     </header>
 
     <div class="problems" id="problems" hidden></div>
-    <section class="card direction" id="direction" hidden></section>
+    <section class="card direction" id="direction" data-fold="direction" hidden></section>
 
     <div class="layout">
       <div class="main-col">
-        <section class="card" id="coming-up-card">
+        <section class="card" id="coming-up-card" data-fold="coming">
           <div class="card-head">
             <h2>Coming up</h2>
             <button class="link" id="show-cleared" hidden></button>
@@ -47,7 +47,7 @@
 
         <div id="agendas"></div>
 
-        <section>
+        <section data-fold="todo">
           <div class="section-head">
             <h2>To do</h2>
             <nav class="tabs" id="roadmap-tabs"></nav>
@@ -58,7 +58,7 @@
       </div>
 
       <div class="side-col">
-        <section class="card" id="calendar-card">
+        <section class="card" id="calendar-card" data-fold="calendar">
           <div class="card-head">
             <h2>Calendar</h2>
             <button class="small" id="new-reminder">+ Reminder</button>
@@ -66,11 +66,11 @@
           <div id="calendar"><p class="hint">Loading…</p></div>
           <p class="cal-foot"><a href="https://calendar.google.com/calendar/r" target="_blank" rel="noopener">Open Google Calendar</a></p>
         </section>
-        <section>
+        <section data-fold="apps">
           <h2>Apps</h2>
           <div class="apps" id="apps"><p class="hint">Loading…</p></div>
         </section>
-        <section>
+        <section data-fold="recent">
           <h2>Recent work</h2>
           <div id="sessions"></div>
         </section>

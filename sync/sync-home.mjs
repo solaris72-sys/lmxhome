@@ -21,6 +21,8 @@ const LIVING_FILE = "Personal/Financial/Living Costs and Savings Goals.md";
 const OVERHEAD_FILE = "LMX Furniture/Business Plan/Overhead.md";
 const REVENUE_FILE = "LMX Furniture/Business Plan/2026 Revenue Tracker.md";
 const REVENUE_YEAR = 2026;
+const UPDATES_FILE = "Claude Agent/Updates from LMX Home.md";
+const PROFILE_FILE = "Claude Agent/User Profile.md";
 const SESSIONS_SHOWN = 6;
 
 const TASK = /^- \[( |x|X)\] (.*)$/;
@@ -118,12 +120,65 @@ function applyOp(lines, op) {
     lines.splice(afterSubLines(lines, i), 0, ...subLines(`**A (${localDate(op.at)}):**`, op.note));
     return null;
   }
+  // The next three come from Claude, after Taylor tells it what's been done on LMX Home
+  if (op.type === "remove") {
+    const i = findLine(lines, TASK, op.text);
+    if (i === -1) return "Task not found in Obsidian (it may have been edited or removed there)";
+    lines.splice(i, afterSubLines(lines, i) - i);
+    return null;
+  }
+  if (op.type === "rename") {
+    const i = findLine(lines, TASK, op.text);
+    if (i === -1) return "Task not found in Obsidian (it may have been edited or removed there)";
+    lines[i] = lines[i].replace(TASK, (all, box) => `- [${box}] ${op.to.trim()}`);
+    return null;
+  }
+  if (op.type === "question") {
+    const h = findLine(lines, HEADING, "Questions from Claude");
+    if (h === -1) return 'Heading "Questions from Claude" not found in Obsidian';
+    let at = h + 1;
+    for (let i = h + 1; i < lines.length && !HEADING.test(lines[i]); i++) if (lines[i].trim()) at = i + 1;
+    lines.splice(at, 0, `- **Q:** ${op.text.trim()}`);
+    return null;
+  }
   return `Unknown change type: ${op.type}`;
+}
+
+// What Taylor told Claude on LMX Home and what Claude changed, newest first, so later sessions see it
+async function writeUpdates(logs) {
+  const file = path.join(vault, UPDATES_FILE);
+  let text = "";
+  try {
+    text = await readFile(file, "utf8");
+  } catch {
+    text = "# Updates from LMX Home\n\nWhat Taylor told Claude in the box at the top of LMX Home, and what Claude changed in the Road Map. Newest first.\n";
+  }
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const entries = logs.map((op) => [
+    `## ${localDate(op.at)}`,
+    "",
+    `**Taylor:** ${op.text.replace(/\r?\n+/g, " ")}`,
+    "",
+    `**Claude:** ${String(op.reply || "").replace(/\r?\n+/g, " ")}`,
+    ...(op.changes?.length ? ["", ...op.changes.map((c) => `- ${c}`)] : []),
+    "",
+  ].join(eol)).reverse();
+  const lines = text.split(/\r?\n/);
+  const first = lines.findIndex((l) => /^## /.test(l));
+  const head = (first === -1 ? lines : lines.slice(0, first)).join(eol).replace(/\s*$/, eol + eol);
+  const rest = first === -1 ? "" : lines.slice(first).join(eol);
+  await writeFile(file, head + entries.join(eol) + rest, "utf8");
 }
 
 async function applyOps(ops) {
   const applied = [];
   const failed = [];
+  const logs = ops.filter((o) => o.type === "log");
+  if (logs.length) {
+    await writeUpdates(logs);
+    applied.push(...logs.map((o) => o.id));
+  }
+  ops = ops.filter((o) => o.type !== "log");
   for (const rm of ROADMAPS) {
     const mine = ops.filter((o) => o.roadmap === rm.id);
     if (!mine.length) continue;
@@ -161,8 +216,10 @@ function parseRoadmap(rm, lines) {
   let lastTask = null;
   let lastQuestion = null;
   let doneInCompleted = 0;
+  const top = []; // Direction and agenda as written, for Claude when Taylor sends an update
   for (const line of lines) {
     const h = HEADING.exec(line);
+    if (areaOf(h && h[1].length === 1 ? h[2].trim() : h1)) top.push(line);
     if (h) {
       const level = h[1].length;
       const text = h[2].trim();
@@ -215,6 +272,7 @@ function parseRoadmap(rm, lines) {
     direction,
     agenda: agenda ? { title: agenda.title, text: agenda.lines.join("\n").trim() } : null,
     questions,
+    top: top.join("\n").trim(),
     groups: groups.filter((g) => g.tasks.length),
     completedCount: doneInCompleted,
   };
@@ -426,7 +484,8 @@ async function snapshot() {
   for (const rm of ROADMAPS) roadmaps.push(parseRoadmap(rm, (await readLines(rm.file)).lines));
   const sessions = parseSessions((await readLines(SESSION_FILE)).lines);
   const money = { personal: await maybe(personalCosts), business: await maybe(businessCosts), income: await maybe(income) };
-  return { syncedAt: new Date().toISOString(), roadmaps, sessions, money };
+  const profile = await maybe(async () => (await readLines(PROFILE_FILE)).lines.join("\n").slice(0, 6000));
+  return { syncedAt: new Date().toISOString(), roadmaps, sessions, money, profile };
 }
 
 // --dry: print what would be uploaded, touch nothing

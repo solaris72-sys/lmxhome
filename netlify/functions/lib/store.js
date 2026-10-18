@@ -52,7 +52,20 @@ export function applyToSnapshot(snapshot, op) {
     const q = (rm.questions || []).find((x) => norm(x.text) === op.text);
     if (q) q.answers.push(op.note);
   }
+  if (op.type === "remove") {
+    for (const g of rm.groups) g.tasks = g.tasks.filter((t) => norm(t.text) !== op.text);
+  }
+  if (op.type === "rename") {
+    for (const g of rm.groups) for (const t of g.tasks) if (norm(t.text) === op.text) t.text = op.to;
+  }
+  if (op.type === "question") {
+    (rm.questions ||= []).push({ key: `pending-${op.id}`, text: op.text, area: "direction", answers: [], sub: [] });
+  }
 }
+
+// Claude's answers to "Tell Claude" updates, polled by the page while Claude works
+export const getJob = (id) => read(`job-${id}.json`, null);
+export const setJob = (id, data) => store().setJSON(`job-${id}.json`, data);
 
 // The day a change was made, in Taylor's time zone (matches what the sync script writes)
 const localDate = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles" });

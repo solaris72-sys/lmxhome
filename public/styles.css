@@ -272,3 +272,26 @@ button.link.write { padding-left: 0; font-size: 14px; }
   .coming .what { flex-basis: 100%; }
   .item-actions { margin-left: 0; }
 }
+
+/* Tell Claude */
+.tell { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.tell-label { display: block; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.tell textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 6px; resize: vertical; background: var(--card); color: var(--ink); }
+.tell .write-buttons { align-items: center; justify-content: space-between; margin-top: 6px; flex-wrap: wrap; }
+.tell-result { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; }
+.tell-result p { margin: 0 0 6px; }
+.tell-result ul { margin: 4px 0 6px; padding-left: 18px; font-size: 14px; }
+.tell-result.error p:first-child { color: var(--error); }
+
+/* Folding */
+.fold-head, [data-fold] > h2, [data-fold] > .card-head > h2, [data-fold] > .section-head > h2 { cursor: pointer; user-select: none; }
+.fold-head::before, [data-fold] > h2::before, [data-fold] > .card-head > h2::before, [data-fold] > .section-head > h2::before {
+  content: '▾'; display: inline-block; width: 1em; font-size: 0.75em; opacity: 0.55; transition: transform 0.15s;
+}
+[data-fold].folded .fold-head::before, [data-fold].folded > h2::before, [data-fold].folded > .card-head > h2::before, [data-fold].folded > .section-head > h2::before { transform: rotate(-90deg); }
+[data-fold].folded > :not(.fold-head):not(h2):not(.card-head):not(.section-head) { display: none; }
+[data-fold].folded > .card-head > :not(h2), [data-fold].folded > .section-head > :not(h2) { display: none; }
+[data-fold].folded > h2, [data-fold].folded > .card-head, [data-fold].folded > .section-head { margin-bottom: 0; }
+.fold-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.fold-summary { display: none; color: var(--ink); }
+.folded .fold-summary { display: inline; }

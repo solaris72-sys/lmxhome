@@ -9,6 +9,7 @@
     "sync": "node sync/sync-home.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.0",
     "@netlify/blobs": "^10.7.9",
     "ical.js": "^2.2.1"
   }

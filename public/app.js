@@ -245,9 +245,13 @@
     box.hidden = !rm;
     if (!rm) return;
     var d = rm.direction;
+    var focus = inline(d.focus || 'Add a **Main focus:** line under Direction in the Road Map');
+    box.appendChild(el('div', { className: 'fold-head' }, [
+      el('span', { className: 'eyebrow', text: 'Direction' }),
+      el('span', { className: 'fold-summary', html: focus })
+    ]));
     var main = el('div', { className: 'dir-main' }, [
-      el('div', { className: 'eyebrow', text: 'Direction' }),
-      el('h2', { className: 'focus-line', html: inline(d.focus || 'Add a **Main focus:** line under Direction in the Road Map') }),
+      el('h2', { className: 'focus-line', html: focus }),
       d.goals.length ? el('ul', { className: 'goals' }, d.goals.map(function (g) { return el('li', { html: inline(g) }); })) : null
     ]);
     areaGroups(rm, 'direction').forEach(function (g) {
@@ -256,9 +260,94 @@
       main.appendChild(addRow(rm, g));
     });
     box.appendChild(el('div', { className: 'dir-grid' }, [main, moneyPanel()]));
+    box.appendChild(tellBox());
     var qs = questionList(rm, areaQuestions(rm, 'direction'));
     if (qs) box.appendChild(qs);
   }
+
+  // ── Tell Claude: Taylor says what's done or changed; Claude rewrites the next steps to match ──
+
+  var tell = { busy: false, result: null };
+
+  function tellBox() {
+    var wrap = el('div', { className: 'tell' });
+    if (tell.result) {
+      var r = tell.result;
+      wrap.appendChild(el('div', { className: 'tell-result' + (r.error ? ' error' : '') }, [
+        el('p', { text: r.error ? 'Claude couldn’t update this: ' + r.error : r.reply }),
+        r.changes && r.changes.length ? el('ul', {}, r.changes.map(function (c) { return el('li', { text: c }); })) : null,
+        r.changes && r.changes.length ? el('p', { className: 'hint', text: 'Saved to the Road Map in Obsidian at the next sync.' }) : null,
+        el('button', { className: 'link', text: 'OK', onclick: function () { tell.result = null; render(); } })
+      ]));
+    }
+    var area = el('textarea', {
+      rows: '2',
+      placeholder: 'Tell Claude what you’ve done or what’s changed, e.g. “Called the insurance company, truck is on non-op now. Cleaned out Cloud 9’s cabin.”',
+      oninput: function () { drafts.tell = area.value; writing.tell = !!area.value.trim(); }
+    });
+    area.value = drafts.tell || '';
+    area.disabled = tell.busy;
+    var send = el('button', { type: 'submit', className: 'small', text: tell.busy ? 'Claude is updating…' : 'Send to Claude' });
+    send.disabled = tell.busy;
+    var form = el('form', { className: 'tell-form' }, [
+      el('label', { className: 'tell-label', text: 'Tell Claude' }),
+      area,
+      el('div', { className: 'write-buttons' }, [
+        el('span', { className: 'hint', text: 'Claude ticks off what’s done and keeps the next steps small and doable.' }),
+        send
+      ])
+    ]);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var text = area.value.trim();
+      if (!text || tell.busy) return;
+      var jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      tell.busy = true;
+      tell.result = null;
+      render();
+      fetch('/api/update-background', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId: jobId, text: text }) })
+        .then(function (res) { if (res.status === 401) { showLogin(); throw new Error('Unauthorized'); } return pollTell(jobId, 0); })
+        .then(function (r) {
+          tell.busy = false;
+          tell.result = r;
+          if (!r.error) { delete drafts.tell; writing.tell = false; }
+          return load();
+        })
+        .catch(function (err) {
+          tell.busy = false;
+          tell.result = { error: err.message };
+          render();
+        });
+    });
+    wrap.appendChild(form);
+    return wrap;
+  }
+
+  // Claude usually answers in under a minute; give up after four
+  function pollTell(jobId, tries) {
+    return new Promise(function (resolve) { setTimeout(resolve, 3000); }).then(function () {
+      return api('update-result?id=' + jobId);
+    }).then(function (r) {
+      if (r.done) return r;
+      if (tries > 80) throw new Error('Claude took too long. Refresh in a minute to see if the changes came through.');
+      return pollTell(jobId, tries + 1);
+    });
+  }
+
+  // ── Folding: cards marked data-fold shrink to their heading, remembered on this device ──
+
+  function applyFold(node) {
+    node.classList.toggle('folded', localGet('fold.' + node.dataset.fold) === '1');
+  }
+
+  document.querySelectorAll('[data-fold]').forEach(applyFold);
+  document.addEventListener('click', function (e) {
+    var head = e.target.closest('.fold-head, [data-fold] > h2, [data-fold] > .card-head > h2, [data-fold] > .section-head > h2');
+    if (!head || e.target.closest('a')) return;
+    var card = head.closest('[data-fold]');
+    card.classList.toggle('folded');
+    localSet('fold.' + card.dataset.fold, card.classList.contains('folded') ? '1' : '0');
+  });
 
   function dollars(n) { return '$' + Math.round(n || 0).toLocaleString('en-US'); }
 
@@ -376,13 +465,16 @@
       if (!rm.agenda || (!rm.agenda.text && !tasks.length && !qs.length)) return;
       var showDone = $('show-done').checked;
       var open = tasks.filter(function (t) { return !t.done; });
-      box.appendChild(el('section', { className: 'card agenda' }, [
+      var card = el('section', { className: 'card agenda', 'data-fold': 'agenda-' + rm.id });
+      applyFold(card);
+      box.appendChild(card);
+      [
         el('h2', { text: rm.agenda.title + (state.snapshot.roadmaps.length > 1 ? ' · ' + rm.name : '') }),
         tasks.length ? el('ul', { className: 'tasks' }, tasks.filter(function (t) { return showDone || !t.done; }).map(function (t) { return taskRow(rm, t); })) : null,
         tasks.length > open.length && !showDone ? el('p', { className: 'done-note', text: (tasks.length - open.length) + ' done' }) : null,
         rm.agenda.text ? el('div', { className: 'md', html: block(rm.agenda.text) }) : null,
         questionList(rm, qs)
-      ]));
+      ].forEach(function (c) { if (c) card.appendChild(c); });
     });
   }
 
