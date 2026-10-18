@@ -2,7 +2,9 @@ import { requireAuth } from "./lib/auth.js";
 import { getSnapshot, saveSnapshot, listOps, saveOps, newId, applyToSnapshot } from "./lib/store.js";
 import { json } from "./lib/http.js";
 
-// POST { type: "toggle", roadmap, text, done } or { type: "add", roadmap, group, text }:
+// POST { type: "toggle", roadmap, text, done }, { type: "add", roadmap, group, text },
+// { type: "note", roadmap, text, note } (a progress note under a task) or
+// { type: "answer", roadmap, text, note } (a reply to one of Claude's questions):
 // queues the change for the computer to write into Obsidian, and shows it on the page now
 export default async (req) => {
   const unauthorized = requireAuth(req);
@@ -20,6 +22,11 @@ export default async (req) => {
   let op;
   if (body.type === "toggle") op = { type: "toggle", roadmap: body.roadmap, text, done: Boolean(body.done) };
   else if (body.type === "add" && body.group) op = { type: "add", roadmap: body.roadmap, group: String(body.group), text };
+  else if (body.type === "note" || body.type === "answer") {
+    const note = String(body.note || "").replace(/\r\n?/g, "\n").trim().slice(0, 4000);
+    if (!note) return json({ error: "Write something first" }, 400);
+    op = { type: body.type, roadmap: body.roadmap, text, note };
+  }
   else return json({ error: "Unknown change" }, 400);
   op.id = newId();
   op.at = new Date().toISOString();

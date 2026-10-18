@@ -108,14 +108,37 @@ code { font-size: 0.9em; background: #f1ebe0; padding: 0 4px; border-radius: 3px
 }
 .problems ul { margin: 4px 0; padding-left: 18px; }
 
-.focus {
-  margin: 14px 0 0;
-  padding: 10px 14px;
-  border-left: 4px solid var(--accent);
-  background: #fbf3e6;
-  border-radius: 0 6px 6px 0;
-}
-.focus strong { color: var(--accent); font-weight: 500; }
+/* Direction */
+.direction { margin-top: 16px; border-left: 4px solid var(--accent); padding: 16px 18px; }
+.dir-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.eyebrow { font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
+.focus-line { font-size: 24px; line-height: 1.25; margin: 2px 0 10px; }
+.goals { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 3px; }
+.goals strong { font-weight: 500; }
+.steps-head { margin-top: 6px; color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; }
+.direction ul.tasks, .agenda ul.tasks { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; }
+
+.dir-money { background: #fbf3e6; border-radius: 6px; padding: 12px 14px; }
+.dir-money h3 { margin-bottom: 6px; }
+.m-row { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; padding: 2px 0; }
+.m-val { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.m-total { border-top: 1px solid var(--gold); margin-top: 3px; padding-top: 5px; font-weight: 500; }
+.m-in { margin-top: 8px; }
+.m-short .m-val { color: var(--error); font-weight: 500; }
+.m-ahead .m-val { color: var(--good); font-weight: 500; }
+.m-note { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+
+/* Claude's questions */
+.questions { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.questions ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
+.questions .q { overflow-wrap: anywhere; }
+.questions .a { margin: 4px 0 0 14px; padding-left: 10px; border-left: 2px solid var(--gold); font-size: 15px; }
+.questions .a .md p { margin: 2px 0; }
+.questions .a .hint { margin: 2px 0 0; font-size: 13px; }
+.questions li.answered .q { color: var(--muted); }
+button.link.write { padding-left: 0; font-size: 14px; }
+.write-box { display: grid; gap: 6px; margin-top: 6px; }
+.write-buttons { display: flex; justify-content: flex-end; gap: 6px; }
 
 .layout {
   display: grid;
@@ -241,7 +264,7 @@ code { font-size: 0.9em; background: #f1ebe0; padding: 0 4px; border-radius: 3px
 .session ul { margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted); }
 
 @media (max-width: 860px) {
-  .layout { grid-template-columns: 1fr; }
+  .layout, .dir-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
   #app { padding: 14px 16px 50px; }

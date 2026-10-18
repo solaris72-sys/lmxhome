@@ -5,6 +5,9 @@
   var showCleared = false;
   var roadmapId = localGet('roadmap') || 'woodworking';
   var adding = {}; // group heading -> add box open
+  var writing = {}; // task or question key -> note / answer box open
+  var drafts = {}; // what's typed in those boxes, kept across re-renders
+  var justOpened = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -173,8 +176,7 @@
       $('roadmap').appendChild(el('p', { className: 'hint', text: 'Waiting for the first sync from your computer. It runs every few minutes while the computer is on.' }));
       return;
     }
-    $('focus').hidden = !s.focus;
-    $('focus').innerHTML = '<strong>Business plan focus:</strong> ' + inline(s.focus || '');
+    renderDirection();
     renderAgendas();
     renderTabs();
     renderRoadmap();
@@ -207,20 +209,166 @@
     } }));
   }
 
+  // ── Direction: the main focus, goals, next steps, money each month and Claude's questions ──
+
+  function areaGroups(rm, area) {
+    return rm.groups.filter(function (g) { return g.area === area; });
+  }
+
+  function areaQuestions(rm, area) {
+    return (rm.questions || []).filter(function (q) { return q.area === area; });
+  }
+
+  function renderDirection() {
+    var box = $('direction');
+    box.textContent = '';
+    var rm = state.snapshot.roadmaps.filter(function (r) { return r.direction; })[0];
+    box.hidden = !rm;
+    if (!rm) return;
+    var d = rm.direction;
+    var main = el('div', { className: 'dir-main' }, [
+      el('div', { className: 'eyebrow', text: 'Direction' }),
+      el('h2', { className: 'focus-line', html: inline(d.focus || 'Add a **Main focus:** line under Direction in the Road Map') }),
+      d.goals.length ? el('ul', { className: 'goals' }, d.goals.map(function (g) { return el('li', { html: inline(g) }); })) : null
+    ]);
+    areaGroups(rm, 'direction').forEach(function (g) {
+      main.appendChild(el('h3', { className: 'steps-head', html: inline(g.heading) }));
+      main.appendChild(el('ul', { className: 'tasks' }, g.tasks.map(function (t) { return taskRow(rm, t); })));
+      main.appendChild(addRow(rm, g));
+    });
+    box.appendChild(el('div', { className: 'dir-grid' }, [main, moneyPanel()]));
+    var qs = questionList(rm, areaQuestions(rm, 'direction'));
+    if (qs) box.appendChild(qs);
+  }
+
+  function dollars(n) { return '$' + Math.round(n || 0).toLocaleString('en-US'); }
+
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // Average over the finished months of the tracker's year, plus this month so far
+  function monthlyIncome(inc) {
+    var now = new Date();
+    var y = now.getFullYear();
+    var full = inc.year < y ? 12 : inc.year > y ? 0 : now.getMonth();
+    var sum = 0;
+    for (var m = 1; m <= full; m++) sum += inc.byMonth[inc.year + '-' + String(m).padStart(2, '0')] || 0;
+    var cur = y + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    return {
+      avg: full ? sum / full : null,
+      span: full ? (full === 1 ? 'Jan' : 'Jan to ' + MONTHS[full - 1]) : '',
+      thisMonth: inc.year === y ? inc.byMonth[cur] || 0 : null
+    };
+  }
+
+  function moneyRow(label, value, cls, title) {
+    return el('div', { className: 'm-row' + (cls ? ' ' + cls : ''), title: title || null }, [
+      el('span', { text: label }), el('span', { className: 'm-val', text: value })
+    ]);
+  }
+
+  function partsTitle(c) {
+    return c.parts.map(function (p) { return p.name + ': ' + dollars(p.monthly); }).join('\n');
+  }
+
+  function moneyPanel() {
+    var m = state.snapshot.money || {};
+    var box = el('aside', { className: 'dir-money' }, [el('h3', { text: 'Each month' })]);
+    if (!m.personal && !m.business && !m.income) {
+      box.appendChild(el('p', { className: 'hint', text: 'Waiting for the next sync to read Living Costs, Overhead and the Revenue Tracker.' }));
+      return box;
+    }
+    var need = (m.personal ? m.personal.total : 0) + (m.business ? m.business.total : 0);
+    if (m.personal) box.appendChild(moneyRow('To live', dollars(m.personal.total), '', partsTitle(m.personal)));
+    if (m.business) box.appendChild(moneyRow('To run the shop', dollars(m.business.total), '', partsTitle(m.business)));
+    box.appendChild(moneyRow('Need', dollars(need), 'm-total'));
+    if (m.income) {
+      var inc = monthlyIncome(m.income);
+      if (inc.avg != null) {
+        box.appendChild(moneyRow('Coming in (avg ' + inc.span + ')', dollars(inc.avg), 'm-in'));
+        var gap = inc.avg - need;
+        box.appendChild(moneyRow(gap < 0 ? 'Short by' : 'Ahead by', dollars(Math.abs(gap)), gap < 0 ? 'm-short' : 'm-ahead'));
+      }
+      if (inc.thisMonth != null) box.appendChild(moneyRow('This month so far', dollars(inc.thisMonth)));
+      box.appendChild(el('p', { className: 'm-note', text:
+        (m.income.lastPayment ? 'Last payment logged ' + shortDate(m.income.lastPayment) + '. ' : 'No payments logged yet. ') +
+        'Add payments in the ' + m.income.year + ' Revenue Tracker in Obsidian.' }));
+    }
+    box.appendChild(el('p', { className: 'm-note', text: 'Before taxes; income is before job materials. Hover a line for its parts.' }));
+    return box;
+  }
+
+  // Claude's questions, each with a box to answer; answers go under the question in Obsidian
+  function questionList(rm, qs) {
+    if (!qs.length) return null;
+    return el('div', { className: 'questions' }, [
+      el('h3', { text: 'Claude asks' }),
+      el('ul', {}, qs.map(function (q) {
+        var answered = q.answers.length > 0;
+        return el('li', { className: answered ? 'answered' : '' }, [
+          el('div', { className: 'q', html: inline(q.text) }),
+          answered ? el('div', { className: 'a' }, q.answers.map(function (a) { return el('div', { className: 'md', html: block(a) }); })
+            .concat([el('p', { className: 'hint', text: 'Claude files this into your notes next session.' })])) : null,
+          writeBox(q.key, answered ? 'Add to answer' : 'Answer', 'Your answer', function (text) {
+            q.answers.push(text);
+            return { type: 'answer', roadmap: rm.id, text: q.text, note: text };
+          })
+        ]);
+      }))
+    ]);
+  }
+
+  // A link that opens a text box; on save it queues the change the build function returns
+  function writeBox(id, label, placeholder, build) {
+    if (!writing[id]) {
+      return el('button', { className: 'link write', text: label, onclick: function () { writing[id] = true; justOpened = id; render(); } });
+    }
+    var area = el('textarea', { rows: '3', placeholder: placeholder, oninput: function () { drafts[id] = area.value; } });
+    area.value = drafts[id] || '';
+    var form = el('form', { className: 'write-box' }, [
+      area,
+      el('div', { className: 'write-buttons' }, [
+        el('button', { type: 'button', className: 'link', text: 'Cancel', onclick: function () { writing[id] = false; delete drafts[id]; render(); } }),
+        el('button', { type: 'submit', className: 'small', text: 'Save' })
+      ])
+    ]);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var text = area.value.trim();
+      if (!text) return;
+      var body = build(text);
+      api('tasks', { method: 'POST', body: body }).then(function () {
+        state.pending++;
+        writing[id] = false;
+        delete drafts[id];
+        render();
+      }).catch(function (err) { $('sync-status').textContent = 'Not saved: ' + err.message; });
+    });
+    if (justOpened === id) { justOpened = null; setTimeout(function () { area.focus(); }, 0); }
+    return form;
+  }
+
   function renderAgendas() {
     var box = $('agendas');
     box.textContent = '';
     state.snapshot.roadmaps.forEach(function (rm) {
-      if (!rm.agenda || !rm.agenda.text) return;
+      var tasks = [];
+      areaGroups(rm, 'agenda').forEach(function (g) { tasks = tasks.concat(g.tasks); });
+      var qs = areaQuestions(rm, 'agenda');
+      if (!rm.agenda || (!rm.agenda.text && !tasks.length && !qs.length)) return;
+      var showDone = $('show-done').checked;
+      var open = tasks.filter(function (t) { return !t.done; });
       box.appendChild(el('section', { className: 'card agenda' }, [
         el('h2', { text: rm.agenda.title + (state.snapshot.roadmaps.length > 1 ? ' · ' + rm.name : '') }),
-        el('div', { className: 'md', html: block(rm.agenda.text) })
+        tasks.length ? el('ul', { className: 'tasks' }, tasks.filter(function (t) { return showDone || !t.done; }).map(function (t) { return taskRow(rm, t); })) : null,
+        tasks.length > open.length && !showDone ? el('p', { className: 'done-note', text: (tasks.length - open.length) + ' done' }) : null,
+        rm.agenda.text ? el('div', { className: 'md', html: block(rm.agenda.text) }) : null,
+        questionList(rm, qs)
       ]));
     });
   }
 
   function openCount(rm) {
-    return rm.groups.reduce(function (n, g) { return n + g.tasks.filter(function (t) { return !t.done; }).length; }, 0);
+    return rm.groups.reduce(function (n, g) { return g.area ? n : n + g.tasks.filter(function (t) { return !t.done; }).length; }, 0);
   }
 
   function renderTabs() {
@@ -239,6 +387,7 @@
 
   $('show-done').addEventListener('change', function () {
     localSet('showDone', $('show-done').checked ? '1' : '0');
+    renderAgendas();
     renderRoadmap();
   });
 
@@ -249,6 +398,7 @@
     var showDone = $('show-done').checked;
     var groups = el('div', { className: 'groups' });
     rm.groups.forEach(function (g) {
+      if (g.area) return; // shown in the Direction and agenda cards
       var open = g.tasks.filter(function (t) { return !t.done; });
       var done = g.tasks.length - open.length;
       if (!open.length && !showDone) return;
@@ -285,8 +435,18 @@
       box,
       el('div', { className: 'body' }, [
         el('span', { className: 'text', html: inline(t.text) }),
-        t.sub && t.sub.length ? el('ul', { className: 'sub' }, t.sub.map(function (s) { return el('li', { html: inline(s) }); })) : null
+        t.sub && t.sub.length ? el('ul', { className: 'sub' }, t.sub.map(function (s) { return el('li', { html: inline(s) }); })) : null,
+        writing[t.key] ? writeBox(t.key, '', 'Progress note, e.g. entered 3 past jobs', function (text) {
+          var lines = text.split('\n').filter(function (l) { return l.trim(); });
+          t.sub = (t.sub || []).concat([todayIso() + ': ' + lines[0]], lines.slice(1));
+          return { type: 'note', roadmap: rm.id, text: t.text, note: text };
+        }) : null
       ]),
+      t.done || writing[t.key] ? null : el('button', { className: 'link remind', text: 'Note', title: 'Add a progress note under this task in Obsidian', onclick: function () {
+        writing[t.key] = true;
+        justOpened = t.key;
+        render();
+      } }),
       t.done ? null : el('button', { className: 'link remind', text: 'Remind', title: 'Add a reminder to Google Calendar', onclick: function () {
         var date = /(20\d\d-\d\d-\d\d)/.exec(t.text);
         openReminder({
@@ -632,7 +792,8 @@
   }
 
   // Keep it fresh while it's open: road maps every 2 minutes, app numbers and calendar every 10
-  setInterval(function () { if (!$('app').hidden && !document.hidden) load(); }, 120000);
+  // (skipped while a note or answer box is open, so nothing typed gets lost)
+  setInterval(function () { if (!$('app').hidden && !document.hidden && !Object.keys(writing).some(function (k) { return writing[k]; })) load(); }, 120000);
   setInterval(function () { if (!$('app').hidden && !document.hidden) { loadApps(); loadCalendar(); } }, 600000);
 
   fetch('/api/auth-check').then(function (res) {

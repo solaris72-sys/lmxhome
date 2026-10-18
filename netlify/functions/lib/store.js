@@ -43,7 +43,19 @@ export function applyToSnapshot(snapshot, op) {
     const g = rm.groups.find((x) => x.heading === op.group);
     if (g) g.tasks.push({ key: `pending-${op.id}`, text: op.text, done: false, sub: [] });
   }
+  if (op.type === "note") {
+    const day = localDate(op.at);
+    const lines = op.note.split("\n").filter((l) => l.trim());
+    for (const g of rm.groups) for (const t of g.tasks) if (norm(t.text) === op.text) t.sub.push(`${day}: ${lines[0]}`, ...lines.slice(1));
+  }
+  if (op.type === "answer") {
+    const q = (rm.questions || []).find((x) => norm(x.text) === op.text);
+    if (q) q.answers.push(op.note);
+  }
 }
+
+// The day a change was made, in Taylor's time zone (matches what the sync script writes)
+const localDate = (iso) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
 
 // Coming up items cleared from the page (kept on the server so phone and computer agree).
 // Each key includes the date, so a deadline that moves shows up again
