@@ -60,7 +60,9 @@ export default async (req) => {
         renamed[task] = text;
         done.push(`Reworded: ${task} → ${text}`);
       }
-      if (c.action === "note" && text) { op = { type: "note", text: task, note: text }; done.push(`Note on ${task}: ${text}`); }
+      // The sync dates every note itself
+      const note = text.replace(/^(January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}, \d{4}:\s*/, "");
+      if (c.action === "note" && note) { op = { type: "note", text: task, note }; done.push(`Note on ${task}: ${note}`); }
       if (c.action === "add" && text && nextSteps) { op = { type: "add", group: nextSteps.heading, text }; known.add(text); done.push(`Added: ${text}`); }
       if (c.action === "question" && text) { op = { type: "question", text }; done.push(`Asked: ${text}`); }
       if (op) ops.push({ ...op, roadmap: rm.id, id: newId(), at });

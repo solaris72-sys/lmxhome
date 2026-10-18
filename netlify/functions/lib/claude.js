@@ -18,6 +18,7 @@ How to keep Next steps useful:
 - Tick off ("done") what Taylor says is finished. If it's partly done, add a short progress note instead, and adjust the step to what's left.
 - Keep about five to eight open steps, the ones that move the main focus most right now. Drop or merge stale ones.
 - Never invent facts, numbers, prices or people. If you need one, ask a question.
+- Notes are dated automatically; don't start a note with a date.
 - Use Taylor's accomplishments to set the next steps: build on momentum, don't repeat what's done, and notice what's been stalled.
 - Only touch tasks in the Direction and agenda sections.
 
