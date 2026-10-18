@@ -18,15 +18,19 @@ How to keep Next steps useful:
 - Tick off ("done") what Taylor says is finished. If it's partly done, add a short progress note instead, and adjust the step to what's left.
 - Keep about five to eight open steps, the ones that move the main focus most right now. Drop or merge stale ones.
 - Never invent facts, numbers, prices or people. If you need one, ask a question.
-- Only touch tasks in the Direction and agenda sections. Copy a task's text exactly, character for character, when you name it in "task".
+- Use Taylor's accomplishments to set the next steps: build on momentum, don't repeat what's done, and notice what's been stalled.
+- Only touch tasks in the Direction and agenda sections.
+
+Accomplishments: list every concrete thing Taylor says they did (applied for a job, fixed something on the boat, called the insurer), one short past-tense line each, in Taylor's terms ("Applied for Stage Technician at Tait", "Replaced Cloud 9's bilge pump switch"). Include things that also tick off a task. Leave out plans and things not yet done. Don't repeat ones already in the list. Copy a task's text exactly, character for character, when you name it in "task".
 
 Writing style: plain and specific. Spell out dates ("October 18, 2026"). No em dashes; use commas, periods or parentheses. The reply is two to four sentences, plain text, no markdown headings.`;
 
 const SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["reply", "changes"],
+  required: ["reply", "accomplishments", "changes"],
   properties: {
+    accomplishments: { type: "array", items: { type: "string" }, description: "Things Taylor did, one short past-tense line each. Empty if none" },
     reply: { type: "string", description: "Short answer to Taylor: what you changed and why, and anything you'd like them to think about" },
     changes: {
       type: "array",
@@ -48,11 +52,12 @@ const SCHEMA = {
   },
 };
 
-export async function planUpdate({ update, top, money, profile, today }) {
+export async function planUpdate({ update, top, money, profile, wins, today }) {
   const prompt = [
     `Today is ${today}.`,
     "## The top of the Road Map as it is now",
     top,
+    wins ? `## Taylor's recent accomplishments\n${wins}` : "",
     money ? `## Money each month (from Taylor's notes)\n${money}` : "",
     profile ? `## About Taylor\n${profile}` : "",
     "## Taylor's update",

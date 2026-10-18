@@ -34,6 +34,13 @@ const norm = (s) => s.replace(/\s+/g, " ").trim();
 
 // Shows a queued change on the page right away, before the computer has synced it
 export function applyToSnapshot(snapshot, op) {
+  if (op.type === "win" && snapshot) {
+    const day = localDate(op.at);
+    const list = (snapshot.accomplishments ||= []);
+    if (list[0]?.date === day) list[0].items.push(op.text);
+    else list.unshift({ date: day, items: [op.text] });
+    return;
+  }
   const rm = snapshot?.roadmaps?.find((r) => r.id === op.roadmap);
   if (!rm) return;
   if (op.type === "toggle") {

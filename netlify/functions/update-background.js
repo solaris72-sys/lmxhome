@@ -33,7 +33,8 @@ export default async (req) => {
     const rm = snapshot?.roadmaps?.find((r) => r.direction);
     if (!rm) throw new Error("No Direction section in the Road Map yet");
     const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles" });
-    const plan = await planUpdate({ update, top: rm.top || "", money: moneyText(snapshot.money), profile: snapshot.profile, today });
+    const wins = (snapshot.accomplishments || []).map((d) => `${d.date}\n${d.items.map((i) => `- ${i}`).join("\n")}`).join("\n");
+    const plan = await planUpdate({ update, top: rm.top || "", money: moneyText(snapshot.money), profile: snapshot.profile, wins, today });
 
     // Claude may only change tasks at the top of the page
     const groups = rm.groups.filter((g) => g.area === "direction" || g.area === "agenda");
@@ -64,7 +65,9 @@ export default async (req) => {
       if (c.action === "question" && text) { op = { type: "question", text }; done.push(`Asked: ${text}`); }
       if (op) ops.push({ ...op, roadmap: rm.id, id: newId(), at });
     }
-    ops.push({ type: "log", roadmap: rm.id, id: newId(), at, text: update, reply: plan.reply, changes: done });
+    const accomplished = (plan.accomplishments || []).map(norm).filter(Boolean).slice(0, 20);
+    for (const text of accomplished) ops.push({ type: "win", roadmap: rm.id, id: newId(), at, text: text.slice(0, 300) });
+    ops.push({ type: "log", roadmap: rm.id, id: newId(), at, text: update, reply: plan.reply, changes: [...accomplished.map((a) => `Accomplished: ${a}`), ...done] });
 
     await saveOps([...(await listOps()), ...ops]);
     const fresh = await getSnapshot();
@@ -72,7 +75,7 @@ export default async (req) => {
       for (const op of ops) applyToSnapshot(fresh, op);
       await saveSnapshot(fresh);
     }
-    await setJob(jobId, { done: true, reply: plan.reply, changes: done, skipped });
+    await setJob(jobId, { done: true, reply: plan.reply, accomplishments: accomplished, changes: done, skipped });
   } catch (err) {
     await setJob(jobId, { done: true, error: err.message || String(err) });
   }

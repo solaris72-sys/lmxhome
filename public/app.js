@@ -200,6 +200,7 @@
     renderTabs();
     renderRoadmap();
     renderSessions();
+    renderWins();
     renderComingUp();
   }
 
@@ -275,6 +276,7 @@
       var r = tell.result;
       wrap.appendChild(el('div', { className: 'tell-result' + (r.error ? ' error' : '') }, [
         el('p', { text: r.error ? 'Claude couldn’t update this: ' + r.error : r.reply }),
+        r.accomplishments && r.accomplishments.length ? el('p', { className: 'tell-wins', text: 'Added to Accomplishments: ' + r.accomplishments.join('; ') }) : null,
         r.changes && r.changes.length ? el('ul', {}, r.changes.map(function (c) { return el('li', { text: c }); })) : null,
         r.changes && r.changes.length ? el('p', { className: 'hint', text: 'Saved to the Road Map in Obsidian at the next sync.' }) : null,
         el('button', { className: 'link', text: 'OK', onclick: function () { tell.result = null; render(); } })
@@ -282,7 +284,7 @@
     }
     var area = el('textarea', {
       rows: '2',
-      placeholder: 'Tell Claude what you’ve done or what’s changed, e.g. “Called the insurance company, truck is on non-op now. Cleaned out Cloud 9’s cabin.”',
+      placeholder: 'What you’ve done or what’s changed, e.g. “Applied for the Tait stage tech job. Fixed the bilge pump switch on Cloud 9. Truck is on non-op now.”',
       oninput: function () { drafts.tell = area.value; writing.tell = !!area.value.trim(); }
     });
     area.value = drafts.tell || '';
@@ -293,7 +295,7 @@
       el('label', { className: 'tell-label', text: 'Tell Claude' }),
       area,
       el('div', { className: 'write-buttons' }, [
-        el('span', { className: 'hint', text: 'Claude ticks off what’s done and keeps the next steps small and doable.' }),
+        el('span', { className: 'hint', text: 'Claude logs your accomplishments, ticks off what’s done and keeps the next steps small and doable.' }),
         send
       ])
     ]);
@@ -885,6 +887,28 @@
   }
 
   // ── Recent work ──
+
+  // What Taylor got done, told to Claude in the box at the top (kept in Accomplishments in Obsidian)
+  var allWins = false;
+
+  function renderWins() {
+    var box = $('wins');
+    box.textContent = '';
+    var days = state.snapshot.accomplishments || [];
+    if (!days.length) {
+      box.appendChild(el('p', { className: 'hint', text: 'Tell Claude what you’ve done (box at the top) and it shows up here.' }));
+      return;
+    }
+    var count = 0;
+    days.forEach(function (d) { count += d.items.length; });
+    (allWins ? days : days.slice(0, 4)).forEach(function (d) {
+      box.appendChild(el('h3', { className: 'win-day', text: d.date }));
+      box.appendChild(el('ul', { className: 'wins' }, d.items.map(function (i) { return el('li', { html: inline(i) }); })));
+    });
+    if (days.length > 4) {
+      box.appendChild(el('button', { className: 'link', text: allWins ? 'Show fewer' : 'Show all ' + count, onclick: function () { allWins = !allWins; renderWins(); } }));
+    }
+  }
 
   function renderSessions() {
     var box = $('sessions');

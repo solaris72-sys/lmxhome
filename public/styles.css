@@ -295,3 +295,10 @@ button.link.write { padding-left: 0; font-size: 14px; }
 .fold-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
 .fold-summary { display: none; color: var(--ink); }
 .folded .fold-summary { display: inline; }
+
+/* Accomplishments */
+.win-day { font-size: 13px; color: var(--muted); margin: 10px 0 2px; font-weight: 500; }
+.win-day:first-child { margin-top: 0; }
+ul.wins { margin: 0; padding-left: 18px; font-size: 14px; }
+ul.wins li::marker { content: '✓  '; color: var(--good); }
+.tell-wins { color: var(--good); font-size: 14px; }

@@ -23,6 +23,8 @@ const REVENUE_FILE = "LMX Furniture/Business Plan/2026 Revenue Tracker.md";
 const REVENUE_YEAR = 2026;
 const UPDATES_FILE = "Claude Agent/Updates from LMX Home.md";
 const PROFILE_FILE = "Claude Agent/User Profile.md";
+const WINS_FILE = "Claude Agent/Accomplishments.md";
+const WINS_SHOWN = 60;
 const SESSIONS_SHOWN = 6;
 
 const TASK = /^- \[( |x|X)\] (.*)$/;
@@ -170,6 +172,55 @@ async function writeUpdates(logs) {
   await writeFile(file, head + entries.join(eol) + rest, "utf8");
 }
 
+// Accomplishments: one "## October 18, 2026" heading per day, newest day first, a bullet per item
+async function writeWins(wins) {
+  const file = path.join(vault, WINS_FILE);
+  let text = "";
+  try {
+    text = await readFile(file, "utf8");
+  } catch {
+    text = "# Accomplishments\n\nThings Taylor got done, from the Tell Claude box on LMX Home (or added here by hand). Newest first. Claude reads these when setting next steps.\n";
+  }
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = text.split(/\r?\n/);
+  for (const op of wins) {
+    const day = localDate(op.at);
+    let h = lines.findIndex((l) => l.trim() === `## ${day}`);
+    if (h === -1) {
+      const first = lines.findIndex((l) => /^## /.test(l));
+      const at = first === -1 ? lines.length : first;
+      lines.splice(at, 0, `## ${day}`, "");
+      h = at;
+    }
+    let at = h + 1;
+    for (let i = h + 1; i < lines.length && !/^## /.test(lines[i]); i++) if (/^- /.test(lines[i])) at = i + 1;
+    if (at === h + 1 && lines[at] === "") at++;
+    lines.splice(at, 0, `- ${op.text.trim()}`);
+    const next = at + 1;
+    if (next < lines.length && /^## /.test(lines[next])) lines.splice(next, 0, "");
+  }
+  await writeFile(file, lines.join(eol).replace(/(\r?\n){3,}/g, eol + eol), "utf8");
+}
+
+function parseWins(lines) {
+  const out = [];
+  let day = null;
+  for (const line of lines) {
+    const h = /^## (.+)$/.exec(line);
+    if (h) { day = { date: h[1].trim(), items: [] }; out.push(day); continue; }
+    if (day && /^- /.test(line)) day.items.push(line.slice(2).trim());
+  }
+  const shown = [];
+  let n = 0;
+  for (const d of out) {
+    if (!d.items.length) continue;
+    if (n >= WINS_SHOWN) break;
+    shown.push({ date: d.date, items: d.items.slice(0, WINS_SHOWN - n) });
+    n += d.items.length;
+  }
+  return shown;
+}
+
 async function applyOps(ops) {
   const applied = [];
   const failed = [];
@@ -178,7 +229,12 @@ async function applyOps(ops) {
     await writeUpdates(logs);
     applied.push(...logs.map((o) => o.id));
   }
-  ops = ops.filter((o) => o.type !== "log");
+  const wins = ops.filter((o) => o.type === "win");
+  if (wins.length) {
+    await writeWins(wins);
+    applied.push(...wins.map((o) => o.id));
+  }
+  ops = ops.filter((o) => o.type !== "log" && o.type !== "win");
   for (const rm of ROADMAPS) {
     const mine = ops.filter((o) => o.roadmap === rm.id);
     if (!mine.length) continue;
@@ -485,7 +541,8 @@ async function snapshot() {
   const sessions = parseSessions((await readLines(SESSION_FILE)).lines);
   const money = { personal: await maybe(personalCosts), business: await maybe(businessCosts), income: await maybe(income) };
   const profile = await maybe(async () => (await readLines(PROFILE_FILE)).lines.join("\n").slice(0, 6000));
-  return { syncedAt: new Date().toISOString(), roadmaps, sessions, money, profile };
+  const accomplishments = (await maybe(async () => parseWins((await readLines(WINS_FILE)).lines))) || [];
+  return { syncedAt: new Date().toISOString(), roadmaps, sessions, money, profile, accomplishments };
 }
 
 // --dry: print what would be uploaded, touch nothing
