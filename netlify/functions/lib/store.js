@@ -55,7 +55,7 @@ export function applyToSnapshot(snapshot, op) {
 }
 
 // The day a change was made, in Taylor's time zone (matches what the sync script writes)
-const localDate = (iso) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+const localDate = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles" });
 
 // Coming up items cleared from the page (kept on the server so phone and computer agree).
 // Each key includes the date, so a deadline that moves shows up again

@@ -56,15 +56,22 @@ function key(roadmapId, text) {
   return createHash("sha1").update(`${roadmapId}|${text.trim()}`).digest("hex").slice(0, 12);
 }
 
-// The day the change was made on the page, in Taylor's time zone
-const localDate = (iso) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+// Dates are written out in full ("October 17, 2026"); localDate is the day a change was made on the
+// page, in Taylor's time zone
+const LONG = { month: "long", day: "numeric", year: "numeric" };
+const localDate = (iso) => new Date(iso).toLocaleDateString("en-US", { ...LONG, timeZone: "America/Los_Angeles" });
+const longDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", LONG);
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
 // ── Apply home page changes to the files ──
+
+// Matches even if a date in the line was rewritten from 2026-10-17 to October 17, 2026 meanwhile
+const spelled = (s) => norm(s).replace(/\b(20\d\d-\d\d-\d\d)\b/g, (iso) => longDate(iso));
 
 function findLine(lines, re, text) {
   return lines.findIndex((l) => {
     const m = re.exec(l);
-    return m && norm(m[m.length - 1]) === norm(text);
+    return m && spelled(m[m.length - 1]) === spelled(text);
   });
 }
 
@@ -297,11 +304,16 @@ async function businessCosts() {
   return { total: round(parts.reduce((n, p) => n + p.monthly, 0)), parts };
 }
 
-// "2026-01-12", "1/12" or "01-12" (the tracker's year)
+// "January 12, 2026", "Jan 12", "2026-01-12", "1/12" or "01-12" (no year means the tracker's year)
 function isoDate(s) {
   s = String(s || "").trim();
   let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
   if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = /^([a-z]{3})[a-z]*\.?\s+(\d{1,2})(?:,?\s+(\d{4}))?$/i.exec(s);
+  if (m && MONTHS.includes(m[1].toLowerCase())) {
+    const mo = String(MONTHS.indexOf(m[1].toLowerCase()) + 1).padStart(2, "0");
+    return `${m[3] || REVENUE_YEAR}-${mo}-${m[2].padStart(2, "0")}`;
+  }
   m = /^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/.exec(s);
   if (!m) return null;
   const y = m[3] ? (m[3].length === 2 ? "20" + m[3] : m[3]) : String(REVENUE_YEAR);
@@ -336,25 +348,25 @@ function readProjects(lines) {
       total: round(payments.reduce((n, p) => n + p.amount, 0)),
     };
   });
-  return { table: t, cols: c, projects };
+  return { table: t, cols: c, pays, projects };
 }
 
-// Keeps each project's Total cell and the Totals table in the Revenue Tracker up to date
+// Keeps each project's Total cell and the Totals table in the Revenue Tracker up to date, and writes
+// payment dates out in full however they were typed
 async function fillRevenueTotals() {
   const { lines, eol } = await readLines(REVENUE_FILE);
   const read = readProjects(lines);
   if (!read) return;
   const before = lines.join("\n");
-  const { cols, projects } = read;
-  if (cols.total !== -1) {
-    for (const p of projects) {
-      const want = p.total ? money(p.total) : "";
-      if (num(p.row.cells[cols.total]) !== (p.total || null)) {
-        const next = [...p.row.cells];
-        next[cols.total] = want;
-        lines[p.row.line] = `| ${next.join(" | ")} |`;
-      }
+  const { cols, pays, projects } = read;
+  for (const p of projects) {
+    const next = [...p.row.cells];
+    if (cols.total !== -1 && num(next[cols.total]) !== (p.total || null)) next[cols.total] = p.total ? money(p.total) : "";
+    for (const pay of pays) {
+      const iso = pay.date === -1 ? null : isoDate(next[pay.date]);
+      if (iso) next[pay.date] = longDate(iso);
     }
+    if (next.join("|") !== p.row.cells.join("|")) lines[p.row.line] = `| ${next.join(" | ")} |`;
   }
   const totals = tables(lines).find((x) => x.header[0] === "stream" && x.header.includes("total"));
   if (totals) {

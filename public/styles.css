@@ -163,7 +163,7 @@ button.link.write { padding-left: 0; font-size: 14px; }
 .item-actions button.link:hover, .task button.remind:hover { color: var(--accent); }
 .coming .when {
   flex: none;
-  min-width: 88px;
+  min-width: 150px;
   font-size: 13px;
   color: var(--muted);
 }
@@ -269,6 +269,6 @@ button.link.write { padding-left: 0; font-size: 14px; }
 @media (max-width: 520px) {
   #app { padding: 14px 16px 50px; }
   .coming li { flex-wrap: wrap; gap: 2px 10px; }
-  .coming .what { flex-basis: calc(100% - 100px); }
-  .item-actions { margin-left: 88px; }
+  .coming .what { flex-basis: 100%; }
+  .item-actions { margin-left: 0; }
 }

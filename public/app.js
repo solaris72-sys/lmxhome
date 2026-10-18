@@ -50,8 +50,10 @@
     return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
   }
 
+  // Dates like 2026-10-17 in the notes show as October 17, 2026 (not inside links or file paths)
   function inline(s) {
     return escapeHtml(s)
+      .replace(/(^|[^\w\/.-])(20\d\d-\d\d-\d\d)(?![\w\/-])/g, function (all, pre, iso) { return pre + longDate(iso); })
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/~~([^~]+)~~/g, '<s>$1</s>')
@@ -153,8 +155,25 @@
     return Math.round(h / 24) + ' days ago';
   }
 
-  function shortDate(iso) {
-    return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  // Dates always written out in full: "October 17, 2026"
+  function longDate(iso, weekday) {
+    return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { weekday: weekday ? 'long' : undefined, month: 'long', day: 'numeric', year: 'numeric' });
+  }
+
+  var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  var DATE_IN_TEXT = new RegExp('(20\\d\\d)-(\\d\\d)-(\\d\\d)|\\b(' + MONTH_NAMES.join('|') + ') (\\d{1,2}), (20\\d\\d)\\b', 'g');
+
+  // Every date in a task, either "2026-10-17" or "October 17, 2026", with where it starts
+  function datesIn(text) {
+    var out = [];
+    var m;
+    DATE_IN_TEXT.lastIndex = 0;
+    while ((m = DATE_IN_TEXT.exec(text))) {
+      var iso = m[1] ? m[1] + '-' + m[2] + '-' + m[3]
+        : m[6] + '-' + String(MONTH_NAMES.indexOf(m[4]) + 1).padStart(2, '0') + '-' + m[5].padStart(2, '0');
+      out.push({ iso: iso, index: m.index });
+    }
+    return out;
   }
 
   function whenLabel(iso) {
@@ -162,7 +181,7 @@
     if (d < 0) return { text: Math.abs(d) + (d === -1 ? ' day late' : ' days late'), soon: true };
     if (d === 0) return { text: 'Today', soon: true };
     if (d === 1) return { text: 'Tomorrow', soon: true };
-    return { text: shortDate(iso), soon: d <= 7 };
+    return { text: longDate(iso), soon: d <= 7 };
   }
 
   // ── Render ──
@@ -290,7 +309,7 @@
       }
       if (inc.thisMonth != null) box.appendChild(moneyRow('This month so far', dollars(inc.thisMonth)));
       box.appendChild(el('p', { className: 'm-note', text:
-        (m.income.lastPayment ? 'Last payment logged ' + shortDate(m.income.lastPayment) + '. ' : 'No payments logged yet. ') +
+        (m.income.lastPayment ? 'Last payment logged ' + longDate(m.income.lastPayment) + '. ' : 'No payments logged yet. ') +
         'Add payments in the ' + m.income.year + ' Revenue Tracker in Obsidian.' }));
     }
     box.appendChild(el('p', { className: 'm-note', text: 'Before taxes; income is before job materials. Hover a line for its parts.' }));
@@ -438,7 +457,7 @@
         t.sub && t.sub.length ? el('ul', { className: 'sub' }, t.sub.map(function (s) { return el('li', { html: inline(s) }); })) : null,
         writing[t.key] ? writeBox(t.key, '', 'Progress note, e.g. entered 3 past jobs', function (text) {
           var lines = text.split('\n').filter(function (l) { return l.trim(); });
-          t.sub = (t.sub || []).concat([todayIso() + ': ' + lines[0]], lines.slice(1));
+          t.sub = (t.sub || []).concat([longDate(todayIso()) + ': ' + lines[0]], lines.slice(1));
           return { type: 'note', roadmap: rm.id, text: t.text, note: text };
         }) : null
       ]),
@@ -448,10 +467,10 @@
         render();
       } }),
       t.done ? null : el('button', { className: 'link remind', text: 'Remind', title: 'Add a reminder to Google Calendar', onclick: function () {
-        var date = /(20\d\d-\d\d-\d\d)/.exec(t.text);
+        var date = (datesIn(t.text)[0] || {}).iso;
         openReminder({
           text: t.text.replace(/\*\*|`/g, '').replace(/\[\[([^\]|]+\|)?([^\]]+)\]\]/g, '$2'),
-          date: date && daysUntil(date[1]) >= 0 ? date[1] : todayIso()
+          date: date && daysUntil(date) >= 0 ? date : todayIso()
         });
       } })
     ]);
@@ -497,16 +516,14 @@
       rm.groups.forEach(function (g) {
         g.tasks.forEach(function (t) {
           if (t.done) return;
-          var re = /(20\d\d-\d\d-\d\d)/g;
-          var m;
-          while ((m = re.exec(t.text))) {
+          datesIn(t.text).some(function (m) {
             var before = t.text.slice(0, m.index).replace(/\*\*/g, '');
-            var d = daysUntil(m[1]);
+            var d = daysUntil(m.iso);
             if ((d >= 0 && d <= 30) || (d < 0 && d >= -21 && AHEAD.test(before))) {
-              out.push({ date: m[1], text: t.text.replace(/\*\*/g, ''), src: rm.name });
-              break;
+              out.push({ date: m.iso, text: t.text.replace(/\*\*/g, ''), src: rm.name });
+              return true;
             }
-          }
+          });
         });
       });
     });
@@ -603,7 +620,7 @@
     var d = daysUntil(iso);
     if (d === 0) return 'Today';
     if (d === 1) return 'Tomorrow';
-    return shortDate(iso);
+    return longDate(iso, true);
   }
 
   function timeLabel(at) {
