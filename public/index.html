@@ -26,6 +26,28 @@
         <p class="today" id="today"></p>
       </div>
       <div class="actions">
+        <details class="sites" id="sites">
+          <summary>Sites</summary>
+          <div class="sites-menu">
+            <div class="sites-group">Apps</div>
+            <a href="https://lmxopportunities.netlify.app" target="_blank" rel="noopener">Opportunities</a>
+            <a href="https://lmxresume.netlify.app" target="_blank" rel="noopener">Resume Builder</a>
+            <a href="https://lmxbids.netlify.app" target="_blank" rel="noopener">LMX Bids</a>
+            <a href="https://lmxflyers.netlify.app" target="_blank" rel="noopener">Flyer Tracker</a>
+            <a href="https://lmxlumberinventory.netlify.app" target="_blank" rel="noopener">Lumber Inventory</a>
+            <a href="https://lmxinsta.netlify.app" target="_blank" rel="noopener">Instagram Post Studio</a>
+            <a href="https://lmxnewsletterapp.netlify.app" target="_blank" rel="noopener">Newsletter Builder</a>
+            <div class="sites-group">Websites</div>
+            <a href="https://lmxfurniture.com" target="_blank" rel="noopener">lmxfurniture.com</a>
+            <a href="https://lmxfurniture.com/lessons.html" target="_blank" rel="noopener">Lessons page</a>
+            <a href="https://lmxfurniture.com/lumber-sales.html" target="_blank" rel="noopener">Lumber Sales page</a>
+            <a href="https://www.instagram.com/lmx_furniture/" target="_blank" rel="noopener">Instagram @lmx_furniture</a>
+            <div class="sites-group">Tools</div>
+            <a href="https://calendar.google.com/calendar/r" target="_blank" rel="noopener">Google Calendar</a>
+            <a href="https://app.netlify.com" target="_blank" rel="noopener">Netlify</a>
+            <a href="https://github.com/solaris72-sys" target="_blank" rel="noopener">GitHub</a>
+          </div>
+        </details>
         <span class="sync" id="sync-status"></span>
         <button class="link" id="refresh">Refresh</button>
         <button class="link" id="logout">Log out</button>
@@ -47,6 +69,14 @@
       </aside>
 
       <div class="main-col">
+        <section class="card" data-fold="todo">
+          <div class="section-head">
+            <h2>To do</h2>
+            <label class="show-done"><input type="checkbox" id="show-done"> Show done</label>
+          </div>
+          <nav class="tabs" id="roadmap-tabs"></nav>
+          <div id="roadmap"></div>
+        </section>
         <section class="card next-card" id="next-card" data-fold="next" hidden>
           <h2>Next steps</h2>
           <div id="next-steps"></div>
@@ -62,14 +92,6 @@
         <section class="card" id="chats-card" data-fold="chats" hidden>
           <h2>Past chats</h2>
           <div id="chats"></div>
-        </section>
-        <section class="card" data-fold="todo">
-          <div class="section-head">
-            <h2>To do</h2>
-            <label class="show-done"><input type="checkbox" id="show-done"> Show done</label>
-          </div>
-          <nav class="tabs" id="roadmap-tabs"></nav>
-          <div id="roadmap"></div>
         </section>
       </div>
 

@@ -303,3 +303,20 @@ ul.wins li::marker { content: '✓  '; color: var(--good); }
 [data-fold].folded > h2::after, [data-fold].folded > .card-head > h2::after, [data-fold].folded > .section-head > h2::after { content: 'show'; }
 [data-fold] > h2:hover, [data-fold] > .card-head > h2:hover, [data-fold] > .section-head > h2:hover { color: var(--accent); }
 .questions-more { margin-top: 10px; padding-left: 0; font-size: 14px; }
+
+/* Sites menu in the header */
+.sites { position: relative; }
+.sites summary { list-style: none; cursor: pointer; padding: 4px 12px; border: 1px solid var(--gold); border-radius: 4px; color: var(--accent); font-size: 15px; }
+.sites summary::-webkit-details-marker { display: none; }
+.sites summary::after { content: ' ▾'; }
+.sites[open] summary { background: var(--card); }
+.sites-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 230px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 6px 0;
+  box-shadow: 0 6px 20px rgba(61, 32, 9, 0.14); display: grid;
+}
+.sites-menu a { padding: 6px 14px; color: var(--ink); text-decoration: none; font-size: 15px; }
+.sites-menu a:hover, .sites-menu a:focus { background: rgba(196, 154, 108, 0.14); color: var(--accent); }
+.sites-group { font-size: 11.5px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 14px 2px; }
+.sites-group:first-child { padding-top: 2px; }
+@media (max-width: 520px) { .sites-menu { right: auto; left: 0; } }

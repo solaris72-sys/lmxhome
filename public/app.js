@@ -102,6 +102,12 @@
     api('auth-logout', { method: 'POST' }).catch(function () {}).then(showLogin);
   });
 
+  // The Sites menu closes when you click anywhere else or pick a link
+  document.addEventListener('click', function (e) {
+    var menu = $('sites');
+    if (menu.open && (!menu.contains(e.target) || e.target.closest('a'))) menu.open = false;
+  });
+
   $('refresh').addEventListener('click', function () { load(); loadApps(); loadCalendar(); });
 
   function start() {
