@@ -320,3 +320,9 @@ ul.wins li::marker { content: '✓  '; color: var(--good); }
 .sites-group { font-size: 11.5px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 14px 2px; }
 .sites-group:first-child { padding-top: 2px; }
 @media (max-width: 520px) { .sites-menu { right: auto; left: 0; } }
+
+/* Most used sites as buttons, the rest under More sites */
+.quick-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.quick-links a { padding: 4px 12px; border: 1px solid var(--gold); border-radius: 4px; background: var(--card); color: var(--ink); text-decoration: none; font-size: 15px; }
+.quick-links a:hover { color: var(--accent); border-color: var(--accent); }
+@media (max-width: 860px) { .actions { width: 100%; } .quick-links { display: contents; } }
