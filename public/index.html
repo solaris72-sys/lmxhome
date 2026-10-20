@@ -33,34 +33,50 @@
     </header>
 
     <div class="problems" id="problems" hidden></div>
-    <section class="card direction" id="direction" data-fold="direction" hidden></section>
 
     <div class="layout">
-      <div class="main-col">
-        <section class="card" id="coming-up-card" data-fold="coming">
-          <div class="card-head">
-            <h2>Coming up</h2>
-            <button class="link" id="show-cleared" hidden></button>
-          </div>
-          <ul class="coming" id="coming-up"></ul>
+      <aside class="left-col">
+        <section class="card goals-card" id="goals-card" data-fold="goals" hidden>
+          <h2>Goals</h2>
+          <div id="goals"></div>
         </section>
+        <section class="card apps-card" data-fold="apps">
+          <h2>Apps</h2>
+          <div class="apps" id="apps"><p class="hint">Loading…</p></div>
+        </section>
+      </aside>
 
-        <div id="agendas"></div>
-
-        <section data-fold="todo">
+      <div class="main-col">
+        <section class="card next-card" id="next-card" data-fold="next" hidden>
+          <h2>Next steps</h2>
+          <div id="next-steps"></div>
+        </section>
+        <section class="card" data-fold="tell">
+          <h2>Tell Claude</h2>
+          <div id="tell"></div>
+        </section>
+        <section class="card" id="questions-card" data-fold="questions" hidden>
+          <h2>Claude asks</h2>
+          <div id="questions"></div>
+        </section>
+        <section class="card" id="chats-card" data-fold="chats" hidden>
+          <h2>Past chats</h2>
+          <div id="chats"></div>
+        </section>
+        <section class="card" data-fold="todo">
           <div class="section-head">
             <h2>To do</h2>
-            <nav class="tabs" id="roadmap-tabs"></nav>
             <label class="show-done"><input type="checkbox" id="show-done"> Show done</label>
           </div>
+          <nav class="tabs" id="roadmap-tabs"></nav>
           <div id="roadmap"></div>
         </section>
       </div>
 
-      <div class="side-col">
-        <section class="card" id="wins-card" data-fold="wins">
-          <h2>Accomplishments</h2>
-          <div id="wins"></div>
+      <aside class="right-col">
+        <section class="card money-card" data-fold="money">
+          <h2>Each month</h2>
+          <div id="money"></div>
         </section>
         <section class="card" id="calendar-card" data-fold="calendar">
           <div class="card-head">
@@ -70,15 +86,15 @@
           <div id="calendar"><p class="hint">Loading…</p></div>
           <p class="cal-foot"><a href="https://calendar.google.com/calendar/r" target="_blank" rel="noopener">Open Google Calendar</a></p>
         </section>
-        <section data-fold="apps">
-          <h2>Apps</h2>
-          <div class="apps" id="apps"><p class="hint">Loading…</p></div>
+        <section class="card" id="wins-card" data-fold="wins">
+          <h2>Accomplishments</h2>
+          <div id="wins"></div>
         </section>
-        <section data-fold="recent">
+        <section class="card" data-fold="recent">
           <h2>Recent work</h2>
           <div id="sessions"></div>
         </section>
-      </div>
+      </aside>
     </div>
   </div>
 

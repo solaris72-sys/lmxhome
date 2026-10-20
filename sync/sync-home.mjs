@@ -13,8 +13,9 @@ const config = JSON.parse(await readFile(path.join(here, "sync-config.json"), "u
 const vault = config.vault;
 
 const ROADMAPS = [
-  { id: "woodworking", name: "Woodworking", file: "Claude Agent/Road Map.md" },
+  { id: "woodworking", name: "LMX Furniture", file: "Claude Agent/Road Map.md" },
   { id: "scion", name: "Scion Forestry", file: "Scion Forestry Services/Road Map.md" },
+  { id: "cloud9", name: "Cloud 9", file: "Personal/Cloud 9 Repair Week.md" },
 ];
 const SESSION_FILE = "Claude Agent/Session Summary.md";
 const LIVING_FILE = "Personal/Financial/Living Costs and Savings Goals.md";
@@ -26,6 +27,7 @@ const PROFILE_FILE = "Claude Agent/User Profile.md";
 const WINS_FILE = "Claude Agent/Accomplishments.md";
 const WINS_SHOWN = 60;
 const SESSIONS_SHOWN = 6;
+const CHATS_SHOWN = 20;
 
 const TASK = /^- \[( |x|X)\] (.*)$/;
 const QUESTION = /^- \*\*Q:\*\*\s*(.*)$/;
@@ -281,7 +283,8 @@ function parseRoadmap(rm, lines) {
       const text = h[2].trim();
       if (level === 1) { h1 = text; h2 = ""; }
       if (level === 2) h2 = text;
-      group = { heading: text, level, parent: level === 3 ? h2 : level === 2 ? h1 : "", area: areaOf(h1), tasks: [] };
+      // goal: the "##" a group sits under (or is), which picks its tab on the page
+      group = { heading: text, level, parent: level === 3 ? h2 : level === 2 ? h1 : "", section: h1, goal: level === 3 ? h2 : text, area: areaOf(h1), tasks: [] };
       lastTask = null;
       lastQuestion = null;
       if (!/^completed$/i.test(h2) && !/^completed$/i.test(text)) groups.push(group);
@@ -354,6 +357,21 @@ function parseSessions(lines) {
     if (sub && /wrap-up/i.test(sub) && !cur.wrap && line.trim() && !/^\*\*/.test(line)) cur.wrap = line.trim();
   }
   return sessions.filter((s) => /^Session/i.test(s.title)).slice(0, SESSIONS_SHOWN);
+}
+
+// Past "Tell Claude" exchanges from Updates from LMX Home, newest first
+function parseChats(lines) {
+  const chats = [];
+  let cur = null;
+  for (const line of lines) {
+    const h = /^## (.+)$/.exec(line);
+    if (h) { cur = { date: h[1].trim(), you: "", claude: "", changes: [] }; chats.push(cur); continue; }
+    if (!cur) continue;
+    const said = /^\*\*(Taylor|Claude):\*\*\s*(.*)$/.exec(line);
+    if (said) cur[said[1] === "Taylor" ? "you" : "claude"] = said[2].trim();
+    else if (/^- /.test(line)) cur.changes.push(line.slice(2).trim());
+  }
+  return chats.filter((c) => c.you).slice(0, CHATS_SHOWN);
 }
 
 // ── Money: what it costs per month, and what came in ──
@@ -542,7 +560,8 @@ async function snapshot() {
   const money = { personal: await maybe(personalCosts), business: await maybe(businessCosts), income: await maybe(income) };
   const profile = await maybe(async () => (await readLines(PROFILE_FILE)).lines.join("\n").slice(0, 6000));
   const accomplishments = (await maybe(async () => parseWins((await readLines(WINS_FILE)).lines))) || [];
-  return { syncedAt: new Date().toISOString(), roadmaps, sessions, money, profile, accomplishments };
+  const chats = (await maybe(async () => parseChats((await readLines(UPDATES_FILE)).lines))) || [];
+  return { syncedAt: new Date().toISOString(), roadmaps, sessions, money, profile, accomplishments, chats };
 }
 
 // --dry: print what would be uploaded, touch nothing

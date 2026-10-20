@@ -1,9 +1,8 @@
 (function () {
   'use strict';
 
-  var state = { snapshot: null, pending: 0, problems: [], apps: null, cleared: [], calendar: null };
-  var showCleared = false;
-  var roadmapId = localGet('roadmap') || 'woodworking';
+  var state = { snapshot: null, pending: 0, problems: [], apps: null, calendar: null };
+  var tabId = localGet('tab') || 'furniture';
   var adding = {}; // group heading -> add box open
   var writing = {}; // task or question key -> note / answer box open
   var drafts = {}; // what's typed in those boxes, kept across re-renders
@@ -120,7 +119,6 @@
       state.snapshot = r.snapshot;
       state.pending = r.pending;
       state.problems = r.problems || [];
-      state.cleared = r.cleared || [];
       render();
     }).catch(function (err) {
       if (err.message !== 'Unauthorized') $('sync-status').textContent = err.message;
@@ -131,7 +129,6 @@
     return api('apps').then(function (apps) {
       state.apps = apps;
       renderApps();
-      renderComingUp();
     }).catch(function () {});
   }
 
@@ -195,13 +192,16 @@
       $('roadmap').appendChild(el('p', { className: 'hint', text: 'Waiting for the first sync from your computer. It runs every few minutes while the computer is on.' }));
       return;
     }
-    renderDirection();
-    renderAgendas();
+    renderGoals();
+    renderNextSteps();
+    renderTell();
+    renderQuestions();
+    renderChats();
+    renderMoney();
     renderTabs();
     renderRoadmap();
     renderSessions();
     renderWins();
-    renderComingUp();
   }
 
   function renderSync() {
@@ -229,46 +229,73 @@
     } }));
   }
 
-  // ── Direction: the main focus, goals, next steps, money each month and Claude's questions ──
+  // ── Direction: the main focus and goals (left), next steps and Claude's questions (middle) ──
 
   function areaGroups(rm, area) {
     return rm.groups.filter(function (g) { return g.area === area; });
   }
 
-  function areaQuestions(rm, area) {
-    return (rm.questions || []).filter(function (q) { return q.area === area; });
+  function directionMap() {
+    return state.snapshot.roadmaps.filter(function (r) { return r.direction; })[0];
   }
 
-  function renderDirection() {
-    var box = $('direction');
+  function renderGoals() {
+    var rm = directionMap();
+    $('goals-card').hidden = !rm;
+    var box = $('goals');
     box.textContent = '';
-    var rm = state.snapshot.roadmaps.filter(function (r) { return r.direction; })[0];
-    box.hidden = !rm;
     if (!rm) return;
     var d = rm.direction;
-    var focus = inline(d.focus || 'Add a **Main focus:** line under Direction in the Road Map');
-    box.appendChild(el('div', { className: 'fold-head' }, [
-      el('span', { className: 'eyebrow', text: 'Direction' }),
-      el('span', { className: 'fold-summary', html: focus })
+    box.appendChild(el('p', { className: 'focus-line' }, [
+      el('span', { className: 'eyebrow', text: 'Main focus' }),
+      el('span', { html: inline(d.focus || 'Add a **Main focus:** line under Direction in the Road Map') })
     ]));
-    var main = el('div', { className: 'dir-main' }, [
-      el('h2', { className: 'focus-line', html: focus }),
-      d.goals.length ? el('ul', { className: 'goals' }, d.goals.map(function (g) { return el('li', { html: inline(g) }); })) : null
-    ]);
-    areaGroups(rm, 'direction').forEach(function (g) {
-      main.appendChild(el('h3', { className: 'steps-head', html: inline(g.heading) }));
-      main.appendChild(el('ul', { className: 'tasks' }, g.tasks.map(function (t) { return taskRow(rm, t); })));
-      main.appendChild(addRow(rm, g));
+    if (d.goals.length) box.appendChild(el('ul', { className: 'goals' }, d.goals.map(function (g) { return el('li', { html: inline(g) }); })));
+  }
+
+  function renderNextSteps() {
+    var rm = directionMap();
+    var groups = rm ? areaGroups(rm, 'direction') : [];
+    $('next-card').hidden = !groups.length;
+    var box = $('next-steps');
+    box.textContent = '';
+    groups.forEach(function (g) {
+      if (groups.length > 1 || !/next steps/i.test(g.heading)) box.appendChild(el('h3', { className: 'steps-head', html: inline(g.heading) }));
+      box.appendChild(el('ul', { className: 'tasks' }, g.tasks.map(function (t) { return taskRow(rm, t); })));
+      box.appendChild(addRow(rm, g));
     });
-    box.appendChild(el('div', { className: 'dir-grid' }, [main, moneyPanel()]));
-    box.appendChild(tellBox());
-    var qs = questionList(rm, areaQuestions(rm, 'direction'));
-    if (qs) box.appendChild(qs);
+  }
+
+  var showAnswered = false;
+
+  function renderQuestions() {
+    var qs = [];
+    state.snapshot.roadmaps.forEach(function (rm) {
+      (rm.questions || []).forEach(function (q) { qs.push({ rm: rm, q: q }); });
+    });
+    $('questions-card').hidden = !qs.length;
+    var box = $('questions');
+    box.textContent = '';
+    // Answered ones just wait for Claude to file them, so they stay tucked away unless asked for
+    var open = qs.filter(function (x) { return !x.q.answers.length; });
+    var answered = qs.length - open.length;
+    var shown = showAnswered ? qs : open;
+    if (shown.length) box.appendChild(questionList(shown));
+    else box.appendChild(el('p', { className: 'hint', text: 'All answered. Claude files them next session.' }));
+    if (answered) {
+      box.appendChild(el('button', { className: 'link questions-more', text: showAnswered ? 'Hide answered' : 'Show ' + answered + ' answered', onclick: function () { showAnswered = !showAnswered; renderQuestions(); } }));
+    }
   }
 
   // ── Tell Claude: Taylor says what's done or changed; Claude rewrites the next steps to match ──
 
   var tell = { busy: false, result: null };
+
+  function renderTell() {
+    var box = $('tell');
+    box.textContent = '';
+    box.appendChild(tellBox());
+  }
 
   function tellBox() {
     var wrap = el('div', { className: 'tell' });
@@ -292,7 +319,6 @@
     var send = el('button', { type: 'submit', className: 'small', text: tell.busy ? 'Claude is updating…' : 'Send to Claude' });
     send.disabled = tell.busy;
     var form = el('form', { className: 'tell-form' }, [
-      el('label', { className: 'tell-label', text: 'Tell Claude' }),
       area,
       el('div', { className: 'write-buttons' }, [
         el('span', { className: 'hint', text: 'Claude logs your accomplishments, ticks off what’s done and keeps the next steps small and doable.' }),
@@ -344,7 +370,7 @@
 
   document.querySelectorAll('[data-fold]').forEach(applyFold);
   document.addEventListener('click', function (e) {
-    var head = e.target.closest('.fold-head, [data-fold] > h2, [data-fold] > .card-head > h2, [data-fold] > .section-head > h2');
+    var head = e.target.closest('[data-fold] > h2, [data-fold] > .card-head > h2, [data-fold] > .section-head > h2');
     if (!head || e.target.closest('a')) return;
     var card = head.closest('[data-fold]');
     card.classList.toggle('folded');
@@ -380,12 +406,13 @@
     return c.parts.map(function (p) { return p.name + ': ' + dollars(p.monthly); }).join('\n');
   }
 
-  function moneyPanel() {
+  function renderMoney() {
     var m = state.snapshot.money || {};
-    var box = el('aside', { className: 'dir-money' }, [el('h3', { text: 'Each month' })]);
+    var box = $('money');
+    box.textContent = '';
     if (!m.personal && !m.business && !m.income) {
       box.appendChild(el('p', { className: 'hint', text: 'Waiting for the next sync to read Living Costs, Overhead and the Revenue Tracker.' }));
-      return box;
+      return;
     }
     var need = (m.personal ? m.personal.total : 0) + (m.business ? m.business.total : 0);
     if (m.personal) box.appendChild(moneyRow('To live', dollars(m.personal.total), '', partsTitle(m.personal)));
@@ -404,15 +431,14 @@
         'Add payments in the ' + m.income.year + ' Revenue Tracker in Obsidian.' }));
     }
     box.appendChild(el('p', { className: 'm-note', text: 'Before taxes; income is before job materials. Hover a line for its parts.' }));
-    return box;
   }
 
   // Claude's questions, each with a box to answer; answers go under the question in Obsidian
-  function questionList(rm, qs) {
-    if (!qs.length) return null;
+  function questionList(qs) {
     return el('div', { className: 'questions' }, [
-      el('h3', { text: 'Claude asks' }),
-      el('ul', {}, qs.map(function (q) {
+      el('ul', {}, qs.map(function (x) {
+        var rm = x.rm;
+        var q = x.q;
         var answered = q.answers.length > 0;
         return el('li', { className: answered ? 'answered' : '' }, [
           el('div', { className: 'q', html: inline(q.text) }),
@@ -457,65 +483,76 @@
     return form;
   }
 
-  function renderAgendas() {
-    var box = $('agendas');
-    box.textContent = '';
-    state.snapshot.roadmaps.forEach(function (rm) {
-      var tasks = [];
-      areaGroups(rm, 'agenda').forEach(function (g) { tasks = tasks.concat(g.tasks); });
-      var qs = areaQuestions(rm, 'agenda');
-      if (!rm.agenda || (!rm.agenda.text && !tasks.length && !qs.length)) return;
-      var showDone = $('show-done').checked;
-      var open = tasks.filter(function (t) { return !t.done; });
-      var card = el('section', { className: 'card agenda', 'data-fold': 'agenda-' + rm.id });
-      applyFold(card);
-      box.appendChild(card);
-      [
-        el('h2', { text: rm.agenda.title + (state.snapshot.roadmaps.length > 1 ? ' · ' + rm.name : '') }),
-        tasks.length ? el('ul', { className: 'tasks' }, tasks.filter(function (t) { return showDone || !t.done; }).map(function (t) { return taskRow(rm, t); })) : null,
-        tasks.length > open.length && !showDone ? el('p', { className: 'done-note', text: (tasks.length - open.length) + ' done' }) : null,
-        rm.agenda.text ? el('div', { className: 'md', html: block(rm.agenda.text) }) : null,
-        questionList(rm, qs)
-      ].forEach(function (c) { if (c) card.appendChild(c); });
-    });
+  // ── To do: tasks from every road map, one tab per area of life ──
+
+  var TABS = [
+    { id: 'furniture', name: 'LMX Furniture' },
+    { id: 'jobs', name: 'Second income' },
+    { id: 'financial', name: 'Financial' },
+    { id: 'scion', name: 'Scion Forestry' },
+    { id: 'personal', name: 'Personal' },
+    { id: 'upkeep', name: 'App upkeep' }
+  ];
+
+  // Tabs follow the "##" goal a group sits under in the Road Map; teaching counts as LMX Furniture
+  function tabOf(rm, g) {
+    if (rm.id === 'scion') return 'scion';
+    if (rm.id === 'cloud9') return 'personal';
+    if (/^Before Next Session/i.test(g.section || '')) return 'upkeep';
+    var goal = g.goal || (g.level === 3 ? g.parent : g.heading);
+    if (/financ|money|debt/i.test(goal)) return 'financial';
+    if (/second income|job/i.test(goal)) return 'jobs';
+    if (/scion|forest/i.test(goal)) return 'scion';
+    if (/cloud 9|health|life|parked|personal/i.test(goal)) return 'personal';
+    return 'furniture';
   }
 
-  function openCount(rm) {
-    return rm.groups.reduce(function (n, g) { return g.area ? n : n + g.tasks.filter(function (t) { return !t.done; }).length; }, 0);
+  // Every to-do group with its road map, minus Next steps (shown at the top)
+  function todoGroups(tab) {
+    var out = [];
+    state.snapshot.roadmaps.forEach(function (rm) {
+      rm.groups.forEach(function (g) {
+        if (g.area !== 'direction' && (!tab || tabOf(rm, g) === tab)) out.push({ rm: rm, g: g });
+      });
+    });
+    return out;
+  }
+
+  function openCount(tab) {
+    return todoGroups(tab).reduce(function (n, x) { return n + x.g.tasks.filter(function (t) { return !t.done; }).length; }, 0);
   }
 
   function renderTabs() {
     var nav = $('roadmap-tabs');
     nav.textContent = '';
-    if (!state.snapshot.roadmaps.some(function (r) { return r.id === roadmapId; })) roadmapId = state.snapshot.roadmaps[0].id;
-    state.snapshot.roadmaps.forEach(function (rm) {
-      nav.appendChild(el('button', { className: rm.id === roadmapId ? 'active' : '', onclick: function () {
-        roadmapId = rm.id;
-        localSet('roadmap', rm.id);
+    if (!TABS.some(function (t) { return t.id === tabId; })) tabId = TABS[0].id;
+    TABS.forEach(function (tab) {
+      nav.appendChild(el('button', { className: tab.id === tabId ? 'active' : '', onclick: function () {
+        tabId = tab.id;
+        localSet('tab', tab.id);
         renderTabs();
         renderRoadmap();
-      } }, [rm.name, el('span', { className: 'count', text: String(openCount(rm)) })]));
+      } }, [tab.name, el('span', { className: 'count', text: String(openCount(tab.id)) })]));
     });
   }
 
   $('show-done').addEventListener('change', function () {
     localSet('showDone', $('show-done').checked ? '1' : '0');
-    renderAgendas();
     renderRoadmap();
   });
 
   function renderRoadmap() {
-    var rm = state.snapshot.roadmaps.filter(function (r) { return r.id === roadmapId; })[0];
     var box = $('roadmap');
     box.textContent = '';
     var showDone = $('show-done').checked;
     var groups = el('div', { className: 'groups' });
-    rm.groups.forEach(function (g) {
-      if (g.area) return; // shown in the Direction and agenda cards
+    todoGroups(tabId).forEach(function (x) {
+      var rm = x.rm;
+      var g = x.g;
       var open = g.tasks.filter(function (t) { return !t.done; });
       var done = g.tasks.length - open.length;
       if (!open.length && !showDone) return;
-      var card = el('div', { className: 'card group' }, [
+      var card = el('div', { className: 'group' }, [
         g.parent && g.level === 3 ? el('div', { className: 'parent', text: g.parent }) : null,
         el('h3', { html: inline(g.heading) })
       ]);
@@ -531,7 +568,6 @@
     });
     if (!groups.children.length) groups.appendChild(el('p', { className: 'hint', text: 'Nothing open here.' }));
     box.appendChild(groups);
-    if (rm.completedCount) box.appendChild(el('p', { className: 'done-note', text: rm.completedCount + ' more in the Completed list in Obsidian.' }));
   }
 
   function taskRow(rm, t) {
@@ -597,92 +633,6 @@
       }).catch(function (err) { $('sync-status').textContent = 'Not saved: ' + err.message; });
     });
     return form;
-  }
-
-  // ── Coming up: deadlines from the apps plus dated tasks ──
-
-  // Dates in a task count when the wording points ahead ("by", "on or after", "tomorrow"...)
-  var AHEAD = /(by|on|before|after|revisit|due|tomorrow|deadline|until)\b[^.]{0,30}$/i;
-
-  function datedTasks() {
-    var out = [];
-    (state.snapshot ? state.snapshot.roadmaps : []).forEach(function (rm) {
-      rm.groups.forEach(function (g) {
-        g.tasks.forEach(function (t) {
-          if (t.done) return;
-          datesIn(t.text).some(function (m) {
-            var before = t.text.slice(0, m.index).replace(/\*\*/g, '');
-            var d = daysUntil(m.iso);
-            if ((d >= 0 && d <= 30) || (d < 0 && d >= -21 && AHEAD.test(before))) {
-              out.push({ date: m.iso, text: t.text.replace(/\*\*/g, ''), src: rm.name });
-              return true;
-            }
-          });
-        });
-      });
-    });
-    return out;
-  }
-
-  // The date is part of the key, so a deadline that moves comes back
-  function itemKey(it) { return it.src + '|' + it.date + '|' + it.text; }
-
-  function isCleared(it) {
-    var k = itemKey(it);
-    return state.cleared.some(function (c) { return c.key === k; });
-  }
-
-  function setCleared(it, clear) {
-    var k = itemKey(it);
-    var before = state.cleared;
-    state.cleared = clear ? before.concat([{ key: k, text: it.text }]) : before.filter(function (c) { return c.key !== k; });
-    renderComingUp();
-    api('cleared', { method: clear ? 'POST' : 'DELETE', body: { key: k, text: it.text } })
-      .then(function (r) { state.cleared = r.cleared; renderComingUp(); })
-      .catch(function (err) { state.cleared = before; renderComingUp(); $('sync-status').textContent = 'Not saved: ' + err.message; });
-  }
-
-  $('show-cleared').addEventListener('click', function () { showCleared = !showCleared; renderComingUp(); });
-
-  function renderComingUp() {
-    var items = datedTasks();
-    (state.apps || []).forEach(function (a) {
-      ((a.data && a.data.deadlines) || []).forEach(function (d) {
-        items.push({ date: d.deadline, text: d.title + (d.organization ? ' (' + d.organization + ')' : ''), src: d.tab || a.name, url: d.url, status: d.status });
-      });
-    });
-    items.sort(function (a, b) { return a.date.localeCompare(b.date); });
-    var clearedHere = items.filter(isCleared);
-    var shown = showCleared ? items : items.filter(function (it) { return !isCleared(it); });
-    var toggle = $('show-cleared');
-    toggle.hidden = !clearedHere.length;
-    toggle.textContent = showCleared ? 'Hide cleared' : 'Show cleared (' + clearedHere.length + ')';
-    var list = $('coming-up');
-    list.textContent = '';
-    shown.slice(0, showCleared ? 40 : 12).forEach(function (it) {
-      var w = whenLabel(it.date);
-      var cleared = isCleared(it);
-      list.appendChild(el('li', { className: cleared ? 'cleared' : '' }, [
-        el('span', { className: 'when' + (w.soon && !cleared ? ' soon' : ''), text: w.text }),
-        el('span', { className: 'what' }, [
-          it.url ? el('a', { href: it.url, target: '_blank', rel: 'noopener', text: it.text }) : el('span', { html: inline(it.text) }),
-          it.status ? ' · ' + it.status : '',
-          el('span', { className: 'src', text: ' ' + it.src })
-        ]),
-        el('span', { className: 'item-actions' }, [
-          cleared ? null : el('button', { className: 'link', text: 'Remind', title: 'Add a reminder to Google Calendar', onclick: function () {
-            openReminder({ text: it.text.replace(/\*\*/g, ''), date: daysUntil(it.date) < 0 ? todayIso() : it.date, notes: it.url || '' });
-          } }),
-          el('button', { className: 'link', text: cleared ? 'Restore' : 'Clear', title: cleared ? 'Show it in Coming up again' : 'Hide it from Coming up', onclick: function () { setCleared(it, !cleared); } })
-        ])
-      ]));
-    });
-    if (!shown.length) {
-      var msg = !state.apps ? 'Loading deadlines…'
-        : items.length ? 'All cleared.'
-        : 'Nothing dated in the next month. Deadlines appear here once you mark an opportunity Interested or Applying and give it a deadline.';
-      list.appendChild(el('li', { className: 'hint', text: msg }));
-    }
   }
 
   // ── Calendar: upcoming Google Calendar events, read from its private feed ──
@@ -896,7 +846,7 @@
     box.textContent = '';
     var days = state.snapshot.accomplishments || [];
     if (!days.length) {
-      box.appendChild(el('p', { className: 'hint', text: 'Tell Claude what you’ve done (box at the top) and it shows up here.' }));
+      box.appendChild(el('p', { className: 'hint', text: 'Tell Claude what you’ve done and it shows up here.' }));
       return;
     }
     var count = 0;
@@ -910,12 +860,36 @@
     }
   }
 
+  // Past "Tell Claude" exchanges (Updates from LMX Home in Obsidian)
+  var allChats = false;
+
+  function renderChats() {
+    var chats = state.snapshot.chats || [];
+    $('chats-card').hidden = !chats.length;
+    var box = $('chats');
+    box.textContent = '';
+    (allChats ? chats : chats.slice(0, 2)).forEach(function (c) {
+      box.appendChild(el('div', { className: 'chat' }, [
+        el('div', { className: 'chat-date', text: c.date }),
+        el('p', {}, [el('strong', { text: 'You: ' }), el('span', { html: inline(c.you) })]),
+        c.claude ? el('p', {}, [el('strong', { text: 'Claude: ' }), el('span', { html: inline(c.claude) })]) : null,
+        c.changes && c.changes.length ? el('details', {}, [
+          el('summary', { text: c.changes.length + (c.changes.length === 1 ? ' change' : ' changes') }),
+          el('ul', {}, c.changes.map(function (x) { return el('li', { html: inline(x) }); }))
+        ]) : null
+      ]));
+    });
+    if (chats.length > 2) {
+      box.appendChild(el('button', { className: 'link', text: allChats ? 'Show fewer' : 'Show all ' + chats.length, onclick: function () { allChats = !allChats; renderChats(); } }));
+    }
+  }
+
   function renderSessions() {
     var box = $('sessions');
     box.textContent = '';
     state.snapshot.sessions.slice(0, 3).forEach(function (s) {
       var items = s.items.slice(0, 6);
-      box.appendChild(el('div', { className: 'session card' }, [
+      box.appendChild(el('div', { className: 'session' }, [
         el('h3', { text: s.title.replace(/^Session,\s*/, '') }),
         s.wrap ? el('p', { html: inline(s.wrap) }) : null,
         items.length ? el('ul', {}, items.map(function (i) { return el('li', { html: inline(i) }); })) : null

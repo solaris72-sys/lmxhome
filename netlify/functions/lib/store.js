@@ -41,6 +41,10 @@ export function applyToSnapshot(snapshot, op) {
     else list.unshift({ date: day, items: [op.text] });
     return;
   }
+  if (op.type === "log" && snapshot) {
+    (snapshot.chats ||= []).unshift({ date: localDate(op.at), you: op.text, claude: op.reply || "", changes: op.changes || [] });
+    return;
+  }
   const rm = snapshot?.roadmaps?.find((r) => r.id === op.roadmap);
   if (!rm) return;
   if (op.type === "toggle") {
