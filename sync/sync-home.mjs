@@ -15,7 +15,7 @@ const vault = config.vault;
 const ROADMAPS = [
   { id: "woodworking", name: "LMX Furniture", file: "Claude Agent/Road Map.md" },
   { id: "scion", name: "Scion Forestry", file: "Scion Forestry Services/Road Map.md" },
-  { id: "cloud9", name: "Cloud 9", file: "Personal/Cloud 9 Repair Week.md" },
+  { id: "cloud9", name: "Cloud 9", file: "Personal/Cloud 9 Restoration.md" },
 ];
 const SESSION_FILE = "Claude Agent/Session Summary.md";
 const LIVING_FILE = "Personal/Financial/Living Costs and Savings Goals.md";
