@@ -326,3 +326,12 @@ ul.wins li::marker { content: '✓  '; color: var(--good); }
 .quick-links a { padding: 4px 12px; border: 1px solid var(--gold); border-radius: 4px; background: var(--card); color: var(--ink); text-decoration: none; font-size: 15px; }
 .quick-links a:hover { color: var(--accent); border-color: var(--accent); }
 @media (max-width: 860px) { .actions { width: 100%; } .quick-links { display: contents; } }
+
+/* Calendar: opportunity dates, setup help and the weekly email line */
+.cal-opp .cal-title { color: inherit; }
+.cal-deadline .cal-title::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #A3321F; margin-right: 6px; vertical-align: middle; }
+.cal-opens .cal-title::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #A0673A; margin-right: 6px; vertical-align: middle; }
+.cal-setup { margin: 6px 0 10px; }
+.cal-setup summary { cursor: pointer; }
+.cal-weekly { margin-top: 10px; }
+.cal-weekly button.link { padding: 0; }

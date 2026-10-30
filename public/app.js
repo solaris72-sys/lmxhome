@@ -699,14 +699,17 @@
     var c = state.calendar;
     if (!c) { box.appendChild(el('p', { className: 'hint', text: 'Loading…' })); return; }
     if (c.error) { box.appendChild(el('p', { className: 'hint', text: 'Couldn’t load the calendar: ' + c.error })); return; }
-    if (!c.configured) {
-      box.appendChild(el('div', { className: 'hint', html: block(
-        'To show your events here, copy your calendar’s private feed link into Netlify:\n' +
-        '1. Google Calendar on a computer, gear icon, **Settings**, then your calendar under "Settings for my calendars"\n' +
-        '2. Under "Integrate calendar", copy **Secret address in iCal format**\n' +
-        '3. Netlify, site **lmxhome**, Environment variables: add `GCAL_ICS_URLS` with that link (tick "Contains secret values"), then ask Claude to redeploy\n' +
-        'More than one calendar: separate the links with commas.') }));
-      return;
+    var setup = 'To show your Google Calendar here, copy its private feed link into Netlify:\n' +
+      '1. Google Calendar on a computer, gear icon, **Settings**, then your calendar under "Settings for my calendars"\n' +
+      '2. Under "Integrate calendar", copy **Secret address in iCal format** (it ends in basic.ics)\n' +
+      '3. Netlify, site **lmxhome**, Site configuration, Environment variables: set `GCAL_ICS_URLS` to that link (tick "Contains secret values"), then ask Claude to redeploy\n' +
+      'More than one calendar: separate the links with commas.';
+    (c.errors || []).forEach(function (e) { box.appendChild(el('p', { className: 'error', text: e })); });
+    if (!c.configured || (c.errors || []).some(function (e) { return /Calendar link|Google/.test(e); })) {
+      box.appendChild(el('details', { className: 'hint cal-setup', open: !c.configured }, [
+        el('summary', { text: c.configured ? 'How to fix the calendar link' : 'Connect Google Calendar' }),
+        el('div', { html: block(setup) })
+      ]));
     }
     var first = todayIso();
     var last = addDays(first, calDays - 1);
@@ -722,9 +725,11 @@
         el('ul', {}, evs.map(function (x) {
           var e = x.ev;
           var t = e.allDay ? 'All day' : (x.firstDay ? timeLabel(e.start.at) : 'cont.');
-          return el('li', {}, [
+          // Opportunity deadlines and openings link to the listing
+          var title = e.title + (e.location ? ' · ' + e.location : '') + (e.tab ? ' · ' + e.tab : '');
+          return el('li', { className: e.kind ? 'cal-opp cal-' + e.kind : '' }, [
             el('span', { className: 'cal-time', text: t }),
-            el('span', { className: 'cal-title', text: e.title + (e.location ? ' · ' + e.location : '') })
+            e.url ? el('a', { className: 'cal-title', href: e.url, target: '_blank', rel: 'noopener', text: title }) : el('span', { className: 'cal-title', text: title })
           ]);
         }))
       ]));
@@ -735,7 +740,33 @@
       calDays = calDays === 7 ? 14 : 7;
       renderCalendar();
     } }));
-    (c.errors || []).forEach(function (e) { box.appendChild(el('p', { className: 'error', text: 'One calendar didn’t load: ' + e })); });
+    box.appendChild(weeklyTools());
+  }
+
+  // ── Weekly email: Sundays at 6 pm, previewed or sent from the Calendar card ──
+
+  function weeklyTools() {
+    var note = el('span', { className: 'hint' });
+    var send = el('button', { className: 'link', text: 'Send it now', onclick: function () {
+      send.disabled = true;
+      note.textContent = 'Sending…';
+      api('weekly', { method: 'POST' }).then(function (r) {
+        note.textContent = r.sent ? 'Sent.' : r.reason;
+      }).catch(function (err) { note.textContent = err.message; }).then(function () { send.disabled = false; });
+    } });
+    var preview = el('button', { className: 'link', text: 'Preview', onclick: function () {
+      // Opened right away so the browser doesn't block it as a pop-up, then filled in
+      var win = window.open('', '_blank');
+      note.textContent = 'Building the preview…';
+      api('weekly').then(function (r) {
+        note.textContent = r.emailReady ? '' : 'Email isn’t set up yet: add RESEND_API_KEY in Netlify (see Claude’s notes).';
+        if (win) {
+          win.document.title = r.subject;
+          win.document.body.innerHTML = '<p style="font:13px sans-serif;color:#7B4F2E">Subject: ' + r.subject.replace(/</g, '&lt;') + '</p>' + r.html;
+        }
+      }).catch(function (err) { note.textContent = err.message; if (win) win.close(); });
+    } });
+    return el('p', { className: 'cal-weekly hint' }, ['Weekly email, Sundays at 6 pm: ', preview, ' · ', send, ' ', note]);
   }
 
   // ── Reminders: opens Google Calendar with the event filled in ──
