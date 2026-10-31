@@ -34,12 +34,22 @@ export default async (req) => {
     if (!rm) throw new Error("No Direction section in the Road Map yet");
     const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles" });
     const wins = (snapshot.accomplishments || []).map((d) => `${d.date}\n${d.items.map((i) => `- ${i}`).join("\n")}`).join("\n");
-    const plan = await planUpdate({ update, top: rm.top || "", money: moneyText(snapshot.money), profile: snapshot.profile, wins, today });
-
-    // Claude may only change tasks at the top of the page
-    const groups = rm.groups.filter((g) => g.area === "direction" || g.area === "agenda");
+    // Claude may change tasks at the top of the page and under the goals, not upkeep or the archive
+    const top = rm.groups.filter((g) => g.area === "direction" || g.area === "agenda");
+    const goalGroups = rm.groups.filter((g) => !g.area && !/^(Before Next Session|Archive)/i.test(g.section || ""));
+    const groups = [...top, ...goalGroups];
     const known = new Set(groups.flatMap((g) => g.tasks.map((t) => norm(t.text))));
-    const nextSteps = groups.find((g) => g.area === "direction" && /next steps/i.test(g.heading)) || groups.find((g) => g.area === "direction");
+    const priorities = top.find((g) => g.area === "direction" && /top priorit|next steps/i.test(g.heading))?.heading || "Top priorities";
+    const headings = new Map([[norm(priorities).toLowerCase(), priorities], ...goalGroups.map((g) => [norm(g.heading).toLowerCase(), g.heading])]);
+    // "" or an unknown heading puts a new task in Top priorities
+    const headingFor = (group) => headings.get(norm(group).toLowerCase()) || null;
+    const goals = goalGroups
+      .map((g) => {
+        const open = g.tasks.filter((t) => !t.done).map((t) => `- [ ] ${t.text}`);
+        return `### ${g.heading}${g.goal && g.goal !== g.heading ? ` (goal: ${g.goal})` : ""}\n${open.join("\n") || "(no open tasks)"}`;
+      })
+      .join("\n\n");
+    const plan = await planUpdate({ update, top: rm.top || "", goals, money: moneyText(snapshot.money), profile: snapshot.profile, wins, today });
     const renamed = {};
     const at = new Date().toISOString();
     const ops = [];
@@ -63,7 +73,18 @@ export default async (req) => {
       // The sync dates every note itself
       const note = text.replace(/^(January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}, \d{4}:\s*/, "");
       if (c.action === "note" && note) { op = { type: "note", text: task, note }; done.push(`Note on ${task}: ${note}`); }
-      if (c.action === "add" && text && nextSteps) { op = { type: "add", group: nextSteps.heading, text }; known.add(text); done.push(`Added: ${text}`); }
+      if (c.action === "add" && text) {
+        const group = headingFor(c.group) || priorities;
+        op = { type: "add", group, text };
+        known.add(text);
+        done.push(`Added to ${group}: ${text}`);
+      }
+      if (c.action === "move") {
+        const group = headingFor(c.group);
+        if (!group) { skipped.push(`move: ${c.task} (no heading "${c.group}")`); continue; }
+        op = { type: "move", text: task, group };
+        done.push(`Moved to ${group}: ${task}`);
+      }
       if (c.action === "question" && text) { op = { type: "question", text }; done.push(`Asked: ${text}`); }
       if (op) ops.push({ ...op, roadmap: rm.id, id: newId(), at });
     }

@@ -113,9 +113,14 @@ code { font-size: 0.9em; background: #f1ebe0; padding: 0 4px; border-radius: 3px
 .focus-line { font-size: 16px; line-height: 1.35; margin: 0 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .goals { margin: 0; padding-left: 16px; display: grid; gap: 6px; font-size: 14.5px; line-height: 1.4; }
 .goals strong { font-weight: 500; }
-.next-card { border-left: 4px solid var(--accent); }
-.steps-head { margin-top: 6px; color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; }
-.next-card ul.tasks { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; }
+/* Top priorities: a bar across the top, up to three side by side */
+.next-card { border-left: 4px solid var(--accent); margin-top: 18px; }
+.next-card ol.priorities { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 22px; counter-reset: priority; }
+.next-card ol.priorities > .task { counter-increment: priority; font-size: 16.5px; line-height: 1.35; }
+.next-card ol.priorities > .task::before { content: counter(priority); font-family: 'Libre Caslon Display', serif; font-size: 26px; line-height: 1; color: var(--accent); flex: none; min-width: 0.7em; }
+.next-card .hint { margin: 8px 0 0; }
+.next-card .add-row, .next-card > div > button.link { margin-top: 8px; }
+@media (max-width: 860px) { .next-card ol.priorities { grid-template-columns: minmax(0, 1fr); } }
 
 /* Each month (right sidebar) */
 .m-row { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; padding: 2px 0; }
@@ -177,6 +182,14 @@ button.link.write { padding-left: 0; font-size: 14px; }
 
 .groups { display: grid; gap: 16px; }
 .group + .group { border-top: 1px solid var(--line); padding-top: 12px; }
+.group-head { cursor: pointer; user-select: none; margin: 0; display: flex; align-items: baseline; gap: 6px; }
+.group-head::before { content: '▾'; color: var(--accent); width: 1em; flex: none; text-align: center; transition: transform 0.15s; }
+.group.folded .group-head::before { transform: rotate(-90deg); }
+.group-head:hover { color: var(--accent); }
+.group-head .count { font-size: 12px; color: var(--accent); font-family: inherit; font-weight: 400; }
+.group:not(.folded) .group-head .count { display: none; }
+.groups:has(.group.folded) { gap: 10px; }
+.fold-all { font-size: 14px; padding-left: 0; }
 .group .parent { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .group ul.tasks { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
 .task { display: flex; gap: 9px; align-items: flex-start; }

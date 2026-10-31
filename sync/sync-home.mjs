@@ -94,6 +94,19 @@ function subLines(prefix, text) {
   return [`  - ${prefix} ${parts[0] || ""}`, ...parts.slice(1).map((l) => `    ${l}`)];
 }
 
+// Where a new task goes: after the group's last task (and its indented notes), before the next heading
+function endOfGroup(lines, heading) {
+  const h = findLine(lines, HEADING, heading);
+  if (h === -1) return -1;
+  let at = -1;
+  let text = h + 1; // with no tasks yet: after the heading's description
+  for (let i = h + 1; i < lines.length && !HEADING.test(lines[i]); i++) {
+    if (TASK.test(lines[i]) || (/^\s+\S/.test(lines[i]) && at === i)) at = i + 1;
+    else if (at === -1 && lines[i].trim() && !/^- /.test(lines[i])) text = i + 1;
+  }
+  return at === -1 ? text : at;
+}
+
 function applyOp(lines, op) {
   if (op.type === "toggle") {
     const i = findLine(lines, TASK, op.text);
@@ -102,14 +115,18 @@ function applyOp(lines, op) {
     return null;
   }
   if (op.type === "add") {
-    const h = findLine(lines, HEADING, op.group);
-    if (h === -1) return `Heading "${op.group}" not found in Obsidian`;
-    // After the group's last task (and its indented notes), before the next heading
-    let at = h + 1;
-    for (let i = h + 1; i < lines.length && !HEADING.test(lines[i]); i++) {
-      if (TASK.test(lines[i]) || (/^\s+\S/.test(lines[i]) && at === i)) at = i + 1;
-    }
+    const at = endOfGroup(lines, op.group);
+    if (at === -1) return `Heading "${op.group}" not found in Obsidian`;
     lines.splice(at, 0, `- [ ] ${op.text.trim()}`);
+    return null;
+  }
+  // From Claude: a task and its notes go under another heading (into or out of Top priorities)
+  if (op.type === "move") {
+    const i = findLine(lines, TASK, op.text);
+    if (i === -1) return "Task not found in Obsidian (it may have been edited or removed there)";
+    if (findLine(lines, HEADING, op.group) === -1) return `Heading "${op.group}" not found in Obsidian`;
+    const block = lines.splice(i, afterSubLines(lines, i) - i);
+    lines.splice(endOfGroup(lines, op.group), 0, ...block);
     return null;
   }
   if (op.type === "note") {

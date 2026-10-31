@@ -259,17 +259,36 @@
     if (d.goals.length) box.appendChild(el('ul', { className: 'goals' }, d.goals.map(function (g) { return el('li', { html: inline(g) }); })));
   }
 
+  // Top priorities: at most three open tasks in a bar across the top; the rest of the work lives under the goals
+  var MAX_PRIORITIES = 3;
+
+  function prioritiesGroup(rm) {
+    if (!rm) return null;
+    var found = areaGroups(rm, 'direction').filter(function (g) { return /top priorit|next steps/i.test(g.heading); })[0];
+    if (found) return found;
+    // The sync leaves out headings with no tasks; adding one writes it under the same heading in Obsidian
+    var empty = { heading: 'Top priorities', area: 'direction', tasks: [] };
+    rm.groups.push(empty);
+    return empty;
+  }
+
   function renderNextSteps() {
     var rm = directionMap();
-    var groups = rm ? areaGroups(rm, 'direction') : [];
-    $('next-card').hidden = !groups.length;
+    var g = prioritiesGroup(rm);
+    $('next-card').hidden = !rm;
     var box = $('next-steps');
     box.textContent = '';
-    groups.forEach(function (g) {
-      if (groups.length > 1 || !/next steps/i.test(g.heading)) box.appendChild(el('h3', { className: 'steps-head', html: inline(g.heading) }));
-      box.appendChild(el('ul', { className: 'tasks' }, g.tasks.map(function (t) { return taskRow(rm, t); })));
-      box.appendChild(addRow(rm, g));
-    });
+    if (!rm) return;
+    var open = g ? g.tasks.filter(function (t) { return !t.done; }) : [];
+    if (open.length) {
+      box.appendChild(el('ol', { className: 'tasks priorities' }, open.slice(0, MAX_PRIORITIES).map(function (t) { return taskRow(rm, t); })));
+    } else {
+      box.appendChild(el('p', { className: 'hint', text: 'Nothing here right now. Tell Claude what to focus on next, or add one below.' }));
+    }
+    if (open.length > MAX_PRIORITIES) {
+      box.appendChild(el('p', { className: 'hint', text: (open.length - MAX_PRIORITIES) + ' more under Top priorities in the Road Map. Tell Claude which can wait, and it moves them to their goals.' }));
+    }
+    if (g && open.length < MAX_PRIORITIES) box.appendChild(addRow(rm, g));
   }
 
   var showAnswered = false;
@@ -547,21 +566,47 @@
     renderRoadmap();
   });
 
+  // Each heading under To do folds to just its title and open count, remembered on this device
+  function groupFoldKey(rm, g) { return 'groupFold.' + rm.id + '|' + g.heading; }
+
+  function visibleGroups() {
+    var showDone = $('show-done').checked;
+    return todoGroups(tabId).filter(function (x) { return showDone || x.g.tasks.some(function (t) { return !t.done; }); });
+  }
+
+  function renderFoldAll() {
+    var shown = visibleGroups();
+    var allFolded = shown.length && shown.every(function (x) { return localGet(groupFoldKey(x.rm, x.g)) === '1'; });
+    $('fold-all').textContent = allFolded ? 'Expand all' : 'Collapse all';
+    $('fold-all').hidden = !shown.length;
+  }
+
+  $('fold-all').addEventListener('click', function () {
+    var fold = $('fold-all').textContent === 'Collapse all';
+    visibleGroups().forEach(function (x) { localSet(groupFoldKey(x.rm, x.g), fold ? '1' : '0'); });
+    renderRoadmap();
+  });
+
   function renderRoadmap() {
     var box = $('roadmap');
     box.textContent = '';
     var showDone = $('show-done').checked;
     var groups = el('div', { className: 'groups' });
-    todoGroups(tabId).forEach(function (x) {
+    visibleGroups().forEach(function (x) {
       var rm = x.rm;
       var g = x.g;
       var open = g.tasks.filter(function (t) { return !t.done; });
       var done = g.tasks.length - open.length;
-      if (!open.length && !showDone) return;
-      var card = el('div', { className: 'group' }, [
+      var foldKey = groupFoldKey(rm, g);
+      var folded = localGet(foldKey) === '1';
+      var card = el('div', { className: 'group' + (folded ? ' folded' : '') }, [
         g.parent && g.level === 3 ? el('div', { className: 'parent', text: g.parent }) : null,
-        el('h3', { html: inline(g.heading) })
+        el('h3', { className: 'group-head', title: folded ? 'Show these tasks' : 'Hide these tasks', onclick: function () {
+          localSet(foldKey, folded ? '0' : '1');
+          renderRoadmap();
+        } }, [el('span', { html: inline(g.heading) }), el('span', { className: 'count', text: String(open.length) })])
       ]);
+      if (folded) { groups.appendChild(card); return; }
       var list = el('ul', { className: 'tasks' });
       g.tasks.forEach(function (t) {
         if (t.done && !showDone) return;
@@ -574,6 +619,7 @@
     });
     if (!groups.children.length) groups.appendChild(el('p', { className: 'hint', text: 'Nothing open here.' }));
     box.appendChild(groups);
+    renderFoldAll();
   }
 
   function taskRow(rm, t) {
@@ -628,12 +674,13 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var text = input.value.trim();
-      if (!text) { adding[id] = false; renderRoadmap(); return; }
+      if (!text) { adding[id] = false; renderNextSteps(); renderRoadmap(); return; }
       api('tasks', { method: 'POST', body: { type: 'add', roadmap: rm.id, group: g.heading, text: text } }).then(function (r) {
         g.tasks.push({ key: 'pending-' + r.op.id, text: text, done: false, sub: [] });
         state.pending++;
         adding[id] = false;
         renderSync();
+        renderNextSteps();
         renderTabs();
         renderRoadmap();
       }).catch(function (err) { $('sync-status').textContent = 'Not saved: ' + err.message; });

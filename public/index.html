@@ -58,6 +58,11 @@
 
     <div class="problems" id="problems" hidden></div>
 
+    <section class="card next-card" id="next-card" data-fold="next" hidden>
+      <h2>Top priorities</h2>
+      <div id="next-steps"></div>
+    </section>
+
     <div class="layout">
       <aside class="left-col">
         <section class="card goals-card" id="goals-card" data-fold="goals" hidden>
@@ -74,14 +79,11 @@
         <section class="card" data-fold="todo">
           <div class="section-head">
             <h2>To do</h2>
+            <button class="link fold-all" id="fold-all">Collapse all</button>
             <label class="show-done"><input type="checkbox" id="show-done"> Show done</label>
           </div>
           <nav class="tabs" id="roadmap-tabs"></nav>
           <div id="roadmap"></div>
-        </section>
-        <section class="card next-card" id="next-card" data-fold="next" hidden>
-          <h2>Next steps</h2>
-          <div id="next-steps"></div>
         </section>
         <section class="card" data-fold="tell">
           <h2>Tell Claude</h2>

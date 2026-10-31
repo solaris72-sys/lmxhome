@@ -2,7 +2,7 @@ import { upcomingEvents, sortKey } from "./calendar.js";
 import { getSnapshot } from "./store.js";
 
 // The Sunday evening email: the week ahead on the calendar, application dates, tax and filing
-// dates a month out, and this week's Next steps from the road maps
+// dates a month out, and the top priorities from the road maps
 const WEEK_DAYS = 7;
 const TAX_DAYS = 30;
 const OPP_DAYS = 14;
@@ -68,9 +68,9 @@ export async function buildWeekly() {
     };
   });
 
-  // This week's picks from each road map, and how many of Claude's questions are waiting
+  // Top priorities from each road map, and how many of Claude's questions are waiting
   const roadmaps = snapshot?.roadmaps || [];
-  const steps = roadmaps.flatMap((rm) => rm.groups.filter((g) => g.heading === "Next steps").flatMap((g) => g.tasks.filter((t) => !t.done).map((t) => ({ rm, t }))));
+  const steps = roadmaps.flatMap((rm) => rm.groups.filter((g) => /^(top priorities|next steps)$/i.test(g.heading)).flatMap((g) => g.tasks.filter((t) => !t.done).map((t) => ({ rm, t }))));
   const stepRows = steps.map(({ rm, t }) => ({
     html: `☐ ${escapeHtml(t.text)}${roadmaps.length > 1 ? ` <span style="color:${C.muted};font-size:13px">${escapeHtml(rm.name)}</span>` : ""}`,
     text: t.text,
@@ -81,7 +81,7 @@ export async function buildWeekly() {
     section(`Taxes and filings (next ${TAX_DAYS} days)`, taxRows),
     section("Applications opening or closing", oppRows),
     section("This week on the calendar", weekRows),
-    section("Next steps", stepRows),
+    section("Top priorities", stepRows),
   ];
   const problems = cal.errors.length ? `<p style="color:${C.red};font-size:13px">Couldn't read part of the calendar: ${escapeHtml(cal.errors.join(" "))}</p>` : "";
   const notSetUp = cal.configured ? "" : `<p style="color:${C.muted};font-size:13px">Your Google Calendar isn't connected to LMX Home yet, so only Opportunities dates are here.</p>`;
@@ -94,7 +94,7 @@ export async function buildWeekly() {
     `<h2 style="font-weight:normal;color:${C.ink};margin:0 0 4px">The week ahead</h2>` +
     `<p style="color:${C.muted};margin:0">${escapeHtml(longDay(addDays(today, 1)))} to ${escapeHtml(longDay(addDays(today, WEEK_DAYS)))}</p>` +
     notSetUp + problems +
-    (parts.some((p) => p.html) ? parts.map((p) => p.html).join("") : `<p>Nothing on the calendar and no Next steps. A quiet week.</p>`) +
+    (parts.some((p) => p.html) ? parts.map((p) => p.html).join("") : `<p>Nothing on the calendar and no top priorities. A quiet week.</p>`) +
     extra +
     `<p style="margin-top:28px"><a href="${SITE}" style="color:${C.accent}">Open LMX Home</a></p></div>`;
   const text = [subject, "", ...parts.map((p) => p.text).filter(Boolean), questions ? `Claude has ${questions} question(s) waiting on LMX Home.\n` : "", SITE].join("\n");

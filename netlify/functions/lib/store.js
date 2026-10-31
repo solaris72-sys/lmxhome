@@ -66,6 +66,16 @@ export function applyToSnapshot(snapshot, op) {
   if (op.type === "remove") {
     for (const g of rm.groups) g.tasks = g.tasks.filter((t) => norm(t.text) !== op.text);
   }
+  if (op.type === "move") {
+    const target = rm.groups.find((x) => x.heading === op.group);
+    let moved = null;
+    for (const g of rm.groups) {
+      const i = g.tasks.findIndex((t) => norm(t.text) === op.text);
+      if (i !== -1) moved = g.tasks.splice(i, 1)[0];
+    }
+    if (moved && target) target.tasks.push(moved);
+    else if (moved) rm.groups.push({ heading: op.group, level: 2, area: /top priorit/i.test(op.group) ? "direction" : "", tasks: [moved] });
+  }
   if (op.type === "rename") {
     for (const g of rm.groups) for (const t of g.tasks) if (norm(t.text) === op.text) t.text = op.to;
   }
